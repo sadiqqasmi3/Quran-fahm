@@ -1,0 +1,13 @@
+{
+  "name": "Quran Feham",
+  "short_name": "Feham",
+  "description": "Understand what you recite.",
+  "start_url": "./#/learn",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071311",
+  "theme_color": "#071311",
+  "icons": [
+    {"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
