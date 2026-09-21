@@ -4,6 +4,7 @@ import {
   getPara,
   getParaForAyah,
   getParaStartingAt,
+  getPdfCoordinateForMushafPage,
   PARAS,
   paraExternalReaderHref,
   paraReaderHref,
@@ -47,5 +48,36 @@ describe("Para metadata", () => {
     expect(getParaStartingAt(1, 1)?.number).toBe(1);
     expect(getParaStartingAt(2, 142)?.number).toBe(2);
     expect(getParaStartingAt(2, 143)).toBeUndefined();
+  });
+
+  it("maps Mushaf page coordinates to the exact Para PDF and 1-based page index", () => {
+    // Para 1: pages 2 to 22
+    expect(getPdfCoordinateForMushafPage(2)).toEqual({
+      paraNumber: 1,
+      pdfPageNumber: 1,
+      pdfUrl: "/mushaf-15-lines/pdf/para-01.pdf",
+    });
+    expect(getPdfCoordinateForMushafPage(22)).toEqual({
+      paraNumber: 1,
+      pdfPageNumber: 21,
+      pdfUrl: "/mushaf-15-lines/pdf/para-01.pdf",
+    });
+
+    // Para 2: pages 23 to 42
+    expect(getPdfCoordinateForMushafPage(23)).toEqual({
+      paraNumber: 2,
+      pdfPageNumber: 1,
+      pdfUrl: "/mushaf-15-lines/pdf/para-02.pdf",
+    });
+
+    // Para 30: pages 583 to 611
+    expect(getPdfCoordinateForMushafPage(611)).toEqual({
+      paraNumber: 30,
+      pdfPageNumber: 29,
+      pdfUrl: "/mushaf-15-lines/pdf/para-30.pdf",
+    });
+
+    expect(() => getPdfCoordinateForMushafPage(1)).toThrow(RangeError);
+    expect(() => getPdfCoordinateForMushafPage(612)).toThrow(RangeError);
   });
 });

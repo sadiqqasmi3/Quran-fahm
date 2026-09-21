@@ -26,6 +26,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "catalog:",
+    "@types/pdfjs-dist": "^2.10.378",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "tailwindcss": "catalog:",

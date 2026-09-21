@@ -42,6 +42,24 @@ export function mushafPageImageUrl(mushafPageNumber: number): string {
   return `/mushaf-15-lines/pages/page-${padded}.webp`;
 }
 
+export function getPdfCoordinateForMushafPage(mushafPageNumber: number): {
+  paraNumber: number;
+  pdfPageNumber: number;
+  pdfUrl: string;
+} {
+  for (let para = 1; para <= 30; para++) {
+    const range = getMushafPageRangeForPara(para);
+    if (mushafPageNumber >= range.startPage && mushafPageNumber <= range.endPage) {
+      return {
+        paraNumber: para,
+        pdfPageNumber: mushafPageNumber - range.startPage + 1,
+        pdfUrl: mushafParaPdfUrl(para),
+      };
+    }
+  }
+  throw new RangeError(`Invalid Mushaf page number: ${mushafPageNumber}`);
+}
+
 export function paraMushafViewerHref(paraNumber: number, initialPage?: number): string {
   const query = new URLSearchParams({ para: String(paraNumber) });
   if (initialPage) query.set("page", String(initialPage));

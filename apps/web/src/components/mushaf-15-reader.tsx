@@ -3,6 +3,7 @@
 import { type FC, type TouchEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  ArrowLeftRight,
   ArrowRight,
   Bookmark,
   BookOpenText,
@@ -30,6 +31,7 @@ import {
   mushafParaPdfUrl,
 } from "@/lib/para-data";
 import { READING_HISTORY_CHANGED_EVENT, recordReadingHistory } from "@/lib/reading-history-store";
+import { MushafPdfCanvas } from "./mushaf-pdf-canvas";
 
 export type MushafTheme = "parchment" | "sepia" | "night";
 
@@ -63,11 +65,31 @@ export function Mushaf15Reader({
     return currentPara.startMushafPage;
   });
 
+  // Reading direction: "rtl" (Quran tradition, page 1 on right) or "ltr" (digital book flow)
+  const [readingDirection, setReadingDirection] = useState<"rtl" | "ltr">(() => {
+    if (typeof window !== "undefined") {
+      const saved = window.localStorage.getItem("qf_mushaf_direction");
+      if (saved === "ltr" || saved === "rtl") return saved;
+    }
+    return "rtl";
+  });
+
+  const toggleReadingDirection = useCallback(() => {
+    setReadingDirection((prev) => {
+      const next = prev === "rtl" ? "ltr" : "rtl";
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("qf_mushaf_direction", next);
+      }
+      return next;
+    });
+  }, []);
+
   const [theme, setTheme] = useState<MushafTheme>("parchment");
   const [zoom, setZoom] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
-  const [turnDirection, setTurnDirection] = useState<"next" | "prev" | null>(null);
+  const [turnDirection, setTurnDirection] = useState<"next" | "prev">("next");
+  const [incomingPage, setIncomingPage] = useState<number | null>(null);
   const [isTurning, setIsTurning] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -75,9 +97,10 @@ export function Mushaf15Reader({
   const [pageJumpOpen, setPageJumpOpen] = useState(false);
   const [targetPageInput, setTargetPageInput] = useState(String(currentPage));
 
-  // Touch swipe handling
+  // Touch & wheel handling
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const lastWheelTime = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Record reading history on page visit
@@ -115,7 +138,7 @@ export function Mushaf15Reader({
     }
   }, [currentPara, currentPage]);
 
-  // Preload adjacent pages for zero-latency turning
+  // Preload adjacent pages in memory for zero-latency turning
   useEffect(() => {
     const pagesToPreload = [
       currentPage - 2,
@@ -145,10 +168,10 @@ export function Mushaf15Reader({
     }
   }, []);
 
-  // Page turn navigation with 3D animation
+  // Smooth two-leaf 3D page turn navigation (zero shaking)
   const goToPage = useCallback(
     (targetPage: number, direction: "next" | "prev") => {
-      if (isTurning) return;
+      if (isTurning || targetPage === currentPage) return;
       if (targetPage < 2 || targetPage > 611) return;
 
       // Detect if crossing into another Para
@@ -159,48 +182,88 @@ export function Mushaf15Reader({
         setParaNumber(targetPara.number);
       }
 
+      setIncomingPage(targetPage);
       setTurnDirection(direction);
       setIsTurning(true);
 
-      // Perform the turn
+      // Complete the page turn smoothly after 320ms transition
       setTimeout(() => {
         setCurrentPage(targetPage);
-        setTimeout(() => {
-          setIsTurning(false);
-          setTurnDirection(null);
-        }, 280);
-      }, 160);
+        setIncomingPage(null);
+        setIsTurning(false);
+      }, 340);
     },
-    [isTurning, paraNumber],
+    [isTurning, currentPage, paraNumber],
   );
 
-  // In RTL Arabic reading: Next page is to the LEFT (flips leftward)
+  // Next page (advances page count forward in book)
   const nextPage = useCallback(() => {
     if (currentPage < 611) {
       goToPage(currentPage + 1, "next");
     }
   }, [currentPage, goToPage]);
 
-  // Previous page is to the RIGHT (flips back rightward)
+  // Previous page (steps back in book)
   const prevPage = useCallback(() => {
     if (currentPage > 2) {
       goToPage(currentPage - 1, "prev");
     }
   }, [currentPage, goToPage]);
 
+  // Mouse wheel & trackpad natural scrolling
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (isTurning) return;
+      const now = Date.now();
+      if (now - lastWheelTime.current < 260) return;
+
+      // Vertical scroll down -> Next page (forward)
+      if (e.deltaY > 25) {
+        lastWheelTime.current = now;
+        nextPage();
+      }
+      // Vertical scroll up -> Previous page (backward)
+      else if (e.deltaY < -25) {
+        lastWheelTime.current = now;
+        prevPage();
+      }
+      // Horizontal trackpad scrolling
+      else if (Math.abs(e.deltaX) > 30) {
+        lastWheelTime.current = now;
+        if (readingDirection === "rtl") {
+          // In RTL: swiping left advances forward, swiping right goes back
+          if (e.deltaX > 30) prevPage();
+          else nextPage();
+        } else {
+          // In LTR: swiping right advances forward, swiping left goes back
+          if (e.deltaX > 30) nextPage();
+          else prevPage();
+        }
+      }
+    },
+    [isTurning, nextPage, prevPage, readingDirection],
+  );
+
   // Keyboard navigation
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Don't intercept if modifier keys or typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) {
         return;
       }
-      if (e.key === "ArrowLeft" || e.key === "PageDown") {
+      if (e.key === "PageDown" || e.key === " ") {
         e.preventDefault();
         nextPage();
-      } else if (e.key === "ArrowRight" || e.key === "PageUp") {
+      } else if (e.key === "PageUp") {
         e.preventDefault();
         prevPage();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (readingDirection === "rtl") nextPage();
+        else prevPage();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (readingDirection === "rtl") prevPage();
+        else nextPage();
       } else if (e.key === "Escape") {
         if (isFullscreen) {
           void toggleFullscreen();
@@ -216,7 +279,7 @@ export function Mushaf15Reader({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [nextPage, prevPage, isFullscreen, toggleFullscreen, onClose]);
+  }, [nextPage, prevPage, isFullscreen, toggleFullscreen, onClose, readingDirection]);
 
   // Touch gestures for mobile swiping
   const handleTouchStart = (e: TouchEvent) => {
@@ -235,12 +298,13 @@ export function Mushaf15Reader({
 
     // Minimum swipe distance of 40px, ensuring horizontal intent
     if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
-      if (deltaX < 0) {
-        // Swiped left -> advance page forward in RTL
-        nextPage();
+      if (readingDirection === "rtl") {
+        // In RTL Arabic reading: drag/swipe left to flip forward
+        if (deltaX < 0) nextPage();
+        else prevPage();
       } else {
-        // Swiped right -> go back
-        prevPage();
+        if (deltaX < 0) nextPage();
+        else prevPage();
       }
     }
 
@@ -404,8 +468,23 @@ export function Mushaf15Reader({
             </p>
           </div>
 
-          {/* Right: Tools (Study Reader link, Theme, Zoom, PDF Download, Fullscreen) */}
+          {/* Right: Tools (Direction, Study Reader link, Theme, Zoom, PDF Download, Fullscreen) */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Reading Direction Toggle */}
+            <button
+              type="button"
+              onClick={toggleReadingDirection}
+              title={`Reading direction: ${readingDirection === "rtl" ? "Quran RTL (Page 1 on right)" : "Digital LTR (Page 1 on left)"}. Click to toggle.`}
+              className={`flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition ${
+                readingDirection === "rtl"
+                  ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
+                  : "bg-white/10 text-white/80 hover:bg-white/20"
+              }`}
+            >
+              <ArrowLeftRight size={14} />
+              <span className="hidden xl:inline">{readingDirection === "rtl" ? "Quran RTL" : "Digital LTR"}</span>
+            </button>
+
             <Link
               href={`/quran?surah=${currentPara.start.surah}&ayah=${currentPara.start.ayah}`}
               className="flex items-center gap-1.5 rounded-xl bg-white/10 px-2.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
@@ -414,6 +493,7 @@ export function Mushaf15Reader({
               <BookOpenText size={15} />
               <span className="hidden xl:inline">Study Verses</span>
             </Link>
+
             {/* Theme switcher */}
             <div className="flex items-center rounded-xl bg-white/10 p-0.5">
               <button
@@ -493,108 +573,157 @@ export function Mushaf15Reader({
 
       {/* ── MAIN READING CANVAS WITH 3D PAGE TURN ── */}
       <main
-        className="relative flex-1 flex items-center justify-center overflow-hidden p-2 sm:p-4 cursor-pointer"
+        onWheel={handleWheel}
+        className="relative flex-1 flex items-center justify-center overflow-hidden p-2 sm:p-4 cursor-pointer select-none"
         onClick={(e) => {
-          // Click left half to advance (RTL forward), click right half to go back
+          if ((e.target as HTMLElement).closest("button, a, input, select")) return;
           const rect = e.currentTarget.getBoundingClientRect();
           const clickX = e.clientX - rect.left;
-          if (clickX < rect.width * 0.35) {
-            nextPage();
-          } else if (clickX > rect.width * 0.65) {
-            prevPage();
+          if (readingDirection === "rtl") {
+            // In RTL: left side advances forward (next), right side goes backward (prev)
+            if (clickX < rect.width * 0.35) {
+              nextPage();
+            } else if (clickX > rect.width * 0.65) {
+              prevPage();
+            } else {
+              setHudVisible((v) => !v);
+            }
           } else {
-            // Toggle HUD when clicking in center zone
-            setHudVisible((v) => !v);
+            // In LTR: right side advances forward (next), left side goes backward (prev)
+            if (clickX > rect.width * 0.65) {
+              nextPage();
+            } else if (clickX < rect.width * 0.35) {
+              prevPage();
+            } else {
+              setHudVisible((v) => !v);
+            }
           }
         }}
       >
         {/* 3D Book Presentation Container */}
         <div
-          className="relative max-h-full max-w-full flex items-center justify-center"
+          className="relative max-h-full max-w-full flex items-center justify-center select-none"
           style={{
             perspective: "2400px",
             transform: `scale(${zoom})`,
             transition: "transform 0.2s ease-out",
           }}
         >
-          {/* Animated Page Leaf */}
+          {/* 3D Book Frame */}
           <div
-            className={`relative rounded-xl sm:rounded-2xl border ${pageFrameStyle} overflow-hidden bg-white transition-all duration-300 ${
-              isTurning && turnDirection === "next"
-                ? "scale-[0.98] -translate-x-3 rotate-[-1deg] opacity-90 shadow-2xl"
-                : isTurning && turnDirection === "prev"
-                  ? "scale-[0.98] translate-x-3 rotate-[1deg] opacity-90 shadow-2xl"
-                  : "scale-100 translate-x-0 rotate-0 opacity-100"
-            }`}
+            className={`relative rounded-xl sm:rounded-2xl border ${pageFrameStyle} overflow-hidden bg-[#faf8f4] shadow-2xl transition-all duration-200`}
             style={{
               maxHeight: "calc(100dvh - 9.5rem)",
               boxShadow:
                 theme === "night"
-                  ? "0 10px 40px rgba(0,0,0,0.9), inset 0 0 40px rgba(0,0,0,0.7)"
-                  : "0 12px 50px rgba(0,0,0,0.45), inset 0 0 20px rgba(0,0,0,0.06)",
+                  ? "0 20px 50px rgba(0,0,0,0.95), 0 0 0 1px rgba(255,255,255,0.08)"
+                  : "0 20px 50px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.05)",
             }}
           >
-            {/* Mushaf Page Image */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={currentImageUrl}
-              alt={`15-Line Mushaf Page ${currentPage} - Para ${currentPara.number}`}
-              className={`block max-h-[calc(100dvh-10rem)] w-auto object-contain transition duration-200 ${
-                theme === "night" ? "invert-[0.92] hue-rotate-180 brightness-95 contrast-125" : ""
+            {/* Stationary Base Layer (Destination page visible underneath during turn) */}
+            {isTurning && incomingPage !== null && (
+              <div className="absolute inset-0 z-0">
+                <MushafPdfCanvas
+                  pageNumber={incomingPage}
+                  theme={theme}
+                  zoom={zoom}
+                  priority={true}
+                />
+              </div>
+            )}
+
+            {/* Active / Turning Leaf */}
+            <div
+              className={`relative z-10 origin-center transition-all duration-300 ease-out transform-gpu will-change-transform ${
+                isTurning
+                  ? turnDirection === "next"
+                    ? readingDirection === "rtl"
+                      ? "-rotate-y-40 scale-[0.98] opacity-85"
+                      : "rotate-y-40 scale-[0.98] opacity-85"
+                    : readingDirection === "rtl"
+                      ? "rotate-y-40 scale-[0.98] opacity-85"
+                      : "-rotate-y-40 scale-[0.98] opacity-85"
+                  : "rotate-y-0 scale-100 opacity-100"
               }`}
-              draggable={false}
-              loading="eager"
-            />
+              style={{
+                transformOrigin:
+                  readingDirection === "rtl"
+                    ? turnDirection === "next"
+                      ? "left center"
+                      : "right center"
+                    : turnDirection === "next"
+                      ? "right center"
+                      : "left center",
+                transformStyle: "preserve-3d",
+              }}
+            >
+              <MushafPdfCanvas
+                pageNumber={currentPage}
+                theme={theme}
+                zoom={zoom}
+                priority={true}
+              />
 
-            {/* Real-time Spine Fold Shadow (adds 3D depth to center fold) */}
-            <div
-              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-black/15 to-transparent"
-              aria-hidden="true"
-            />
-            <div
-              className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-black/15 to-transparent"
-              aria-hidden="true"
-            />
-
-            {/* Subtle turn shadow during animation */}
-            {isTurning && (
+              {/* Dynamic Turn Shadow during page turn */}
               <div
-                className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${
-                  turnDirection === "next"
-                    ? "from-black/25 via-transparent to-transparent"
-                    : "from-transparent via-transparent to-black/25"
-                } transition-opacity duration-200`}
+                className={`pointer-events-none absolute inset-0 transition-opacity duration-300 ${
+                  isTurning ? "opacity-100" : "opacity-0"
+                } ${
+                  readingDirection === "rtl"
+                    ? "bg-gradient-to-l from-black/25 via-black/10 to-transparent"
+                    : "bg-gradient-to-r from-black/25 via-black/10 to-transparent"
+                }`}
                 aria-hidden="true"
               />
-            )}
+            </div>
+
+            {/* Center Spine Crease Shadow (Authentic Quran book spine depth) */}
+            <div
+              className={`pointer-events-none absolute inset-y-0 z-20 w-8 ${
+                currentPage % 2 === 0
+                  ? "right-0 bg-gradient-to-l from-black/20 via-black/5 to-transparent"
+                  : "left-0 bg-gradient-to-r from-black/20 via-black/5 to-transparent"
+              }`}
+              aria-hidden="true"
+            />
           </div>
         </div>
 
-        {/* Floating Side Turn Hitboxes with Visual Indicator */}
+        {/* Floating Side Turn Hitboxes with Explicit Destination Indicators */}
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            nextPage();
+            if (readingDirection === "rtl") nextPage();
+            else prevPage();
           }}
-          disabled={currentPage >= 611}
-          aria-label="Next Page (Advance in RTL)"
-          className="absolute left-2 sm:left-4 z-20 flex size-11 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:bg-black/70 hover:text-white active:scale-95 disabled:opacity-0 transition"
+          disabled={readingDirection === "rtl" ? currentPage >= 611 : currentPage <= 2}
+          aria-label={readingDirection === "rtl" ? `Next Page (صفحہ ${currentPage + 1})` : `Previous Page (صفحہ ${currentPage - 1})`}
+          title={readingDirection === "rtl" ? `صفحہ ${currentPage + 1} ←` : `← صفحہ ${currentPage - 1}`}
+          className="group absolute left-2 sm:left-4 z-20 flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-2 text-white/90 backdrop-blur-md hover:bg-black/75 hover:scale-105 active:scale-95 disabled:opacity-0 transition-all shadow-lg shadow-black/40"
         >
-          <ArrowLeft size={22} />
+          <ArrowLeft size={20} />
+          <span className="hidden md:inline-block text-[0.7rem] font-medium font-mono text-white/80 group-hover:text-white">
+            {readingDirection === "rtl" ? `صفحہ ${currentPage + 1}` : `صفحہ ${currentPage - 1}`}
+          </span>
         </button>
 
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            prevPage();
+            if (readingDirection === "rtl") prevPage();
+            else nextPage();
           }}
-          disabled={currentPage <= 2}
-          aria-label="Previous Page"
-          className="absolute right-2 sm:right-4 z-20 flex size-11 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:bg-black/70 hover:text-white active:scale-95 disabled:opacity-0 transition"
+          disabled={readingDirection === "rtl" ? currentPage <= 2 : currentPage >= 611}
+          aria-label={readingDirection === "rtl" ? `Previous Page (صفحہ ${currentPage - 1})` : `Next Page (صفحہ ${currentPage + 1})`}
+          title={readingDirection === "rtl" ? `→ صفحہ ${currentPage - 1}` : `صفحہ ${currentPage + 1} →`}
+          className="group absolute right-2 sm:right-4 z-20 flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-2 text-white/90 backdrop-blur-md hover:bg-black/75 hover:scale-105 active:scale-95 disabled:opacity-0 transition-all shadow-lg shadow-black/40"
         >
-          <ArrowRight size={22} />
+          <span className="hidden md:inline-block text-[0.7rem] font-medium font-mono text-white/80 group-hover:text-white">
+            {readingDirection === "rtl" ? `صفحہ ${currentPage - 1}` : `صفحہ ${currentPage + 1}`}
+          </span>
+          <ArrowRight size={20} />
         </button>
       </main>
 
@@ -610,10 +739,11 @@ export function Mushaf15Reader({
           {/* Page Scrubber Range */}
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono text-white/60 min-w-8 text-right">
-              {currentPara.startMushafPage}
+              {readingDirection === "rtl" ? currentPara.endMushafPage : currentPara.startMushafPage}
             </span>
             <input
               type="range"
+              dir={readingDirection}
               min={currentPara.startMushafPage}
               max={currentPara.endMushafPage}
               value={currentPage}
@@ -625,7 +755,7 @@ export function Mushaf15Reader({
               className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-white/20 accent-emerald-400 focus:outline-none"
             />
             <span className="text-xs font-mono text-white/60 min-w-8">
-              {currentPara.endMushafPage}
+              {readingDirection === "rtl" ? currentPara.startMushafPage : currentPara.endMushafPage}
             </span>
           </div>
 
