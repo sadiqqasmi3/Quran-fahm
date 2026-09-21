@@ -55,6 +55,7 @@ import {
 import { findLearningWord, tokenizeArabic } from "@/lib/prototype-learning-data";
 import { READING_HISTORY_CHANGED_EVENT, recordReadingHistory } from "@/lib/reading-history-store";
 import { applyThemePreference } from "@/lib/theme";
+import { LanguageSwitcher } from "./language-switcher";
 import { MobileNavigation } from "./app-shell";
 import { Brand } from "./brand";
 
@@ -1076,6 +1077,7 @@ export function ReaderWorkspace({
                   onChange={(event) => setArabicScale(Number(event.target.value))}
                   className="hidden w-24 accent-accent sm:block"
                 />
+                <LanguageSwitcher className="hidden sm:inline-flex" />
                 <Settings2 className="hidden text-muted sm:block" aria-hidden="true" size={18} />
               </div>
             </div>

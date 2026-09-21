@@ -21,30 +21,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type { User } from "@quran-feham/contracts";
 import { getCurrentUser, logout } from "@/lib/api";
+import { useLocale } from "@/lib/i18n/locale-context";
 import { Brand } from "./brand";
-
-const primaryNavigation = [
-  { href: "/home", label: "Home", icon: Home },
-  { href: "/quran", label: "Quran", icon: BookOpenText },
-  { href: "/recite", label: "Recite", icon: Mic2 },
-  { href: "/khatm", label: "Khatm", icon: UsersRound },
-  { href: "/ask", label: "Ask", icon: MessageCircleQuestion },
-];
-
-const secondaryNavigation = [
-  { href: "/mushaf", label: "15-Line Mushaf", icon: BookOpen },
-  { href: "/guide", label: "App Guide · رہنمائی", icon: HelpCircle },
-  { href: "/learn", label: "Learn", icon: BookMarked },
-  { href: "/explore", label: "Explore", icon: Compass },
-  { href: "/salah", label: "Salah", icon: Mosque },
-  { href: "/progress", label: "Progress", icon: TrendingUp },
-  { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
-  { href: "/downloads", label: "Downloads", icon: Download },
-  { href: "/sources", label: "Sources", icon: BookOpenCheck },
-];
+import { LanguageSwitcher } from "./language-switcher";
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -52,6 +34,18 @@ function isActive(pathname: string, href: string) {
 
 export function MobileNavigation() {
   const pathname = usePathname();
+  const { t } = useLocale();
+
+  const primaryNavigation = useMemo(
+    () => [
+      { href: "/home", label: t("navHome"), icon: Home },
+      { href: "/quran", label: t("navQuran"), icon: BookOpenText },
+      { href: "/recite", label: t("navRecite"), icon: Mic2 },
+      { href: "/khatm", label: t("navKhatm"), icon: UsersRound },
+      { href: "/ask", label: t("navAsk"), icon: MessageCircleQuestion },
+    ],
+    [t],
+  );
 
   return (
     <nav
@@ -69,7 +63,7 @@ export function MobileNavigation() {
             className={`flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg px-1 text-xs font-semibold ${active ? "text-accent" : "text-muted hover:text-ink"}`}
           >
             <Icon aria-hidden="true" size={21} strokeWidth={active ? 2.2 : 1.8} />
-            {label}
+            <span className="truncate max-w-[4rem] text-[0.7rem]">{label}</span>
           </Link>
         );
       })}
@@ -81,6 +75,33 @@ export function DesktopSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const { t, isUrdu } = useLocale();
+
+  const primaryNavigation = useMemo(
+    () => [
+      { href: "/home", label: t("navHome"), icon: Home },
+      { href: "/quran", label: t("navQuran"), icon: BookOpenText },
+      { href: "/recite", label: t("navRecite"), icon: Mic2 },
+      { href: "/khatm", label: t("navKhatm"), icon: UsersRound },
+      { href: "/ask", label: t("navAsk"), icon: MessageCircleQuestion },
+    ],
+    [t],
+  );
+
+  const secondaryNavigation = useMemo(
+    () => [
+      { href: "/mushaf", label: t("navMushaf"), icon: BookOpen },
+      { href: "/guide", label: t("navGuide"), icon: HelpCircle },
+      { href: "/learn", label: t("navLearn"), icon: BookMarked },
+      { href: "/explore", label: t("navExplore"), icon: Compass },
+      { href: "/salah", label: t("navSalah"), icon: Mosque },
+      { href: "/progress", label: t("navProgress"), icon: TrendingUp },
+      { href: "/bookmarks", label: t("navBookmarks"), icon: Bookmark },
+      { href: "/downloads", label: t("navDownloads"), icon: Download },
+      { href: "/sources", label: t("navSources"), icon: BookOpenCheck },
+    ],
+    [t],
+  );
 
   useEffect(() => {
     let active = true;
@@ -109,13 +130,19 @@ export function DesktopSidebar() {
 
   return (
     <aside
-      className="sticky top-0 hidden h-dvh w-64 shrink-0 overflow-y-auto border-r border-line bg-surface px-4 py-5 lg:flex lg:flex-col xl:w-72"
+      className="sticky top-0 hidden h-dvh w-64 shrink-0 overflow-y-auto border-r rtl:border-r-0 rtl:border-l border-line bg-surface px-4 py-5 lg:flex lg:flex-col xl:w-72"
       data-no-print
     >
-      <div className="px-2">
+      <div className="px-2 flex items-center justify-between">
         <Brand href="/home" />
       </div>
-      <nav aria-label="Primary navigation" className="mt-9 space-y-1">
+
+      {/* Language Switcher in Sidebar */}
+      <div className="mt-4 px-2">
+        <LanguageSwitcher className="w-full justify-center" />
+      </div>
+
+      <nav aria-label="Primary navigation" className="mt-6 space-y-1">
         {primaryNavigation.map(({ href, label, icon: Icon }) => {
           const active = isActive(pathname, href);
           return (
@@ -126,13 +153,13 @@ export function DesktopSidebar() {
               className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${active ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-soft hover:text-ink"}`}
             >
               <Icon aria-hidden="true" size={20} strokeWidth={active ? 2.2 : 1.8} />
-              {label}
+              <span>{label}</span>
             </Link>
           );
         })}
       </nav>
       <div className="mx-3 mt-8 border-t border-line pt-5 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">
-        Your Quran journey
+        {t("navJourneyHeader")}
       </div>
       <nav aria-label="Learning and account tools" className="mt-2 space-y-1">
         {secondaryNavigation.map(({ href, label, icon: Icon }) => {
@@ -145,7 +172,7 @@ export function DesktopSidebar() {
               className={`flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${active ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-soft hover:text-ink"}`}
             >
               <Icon aria-hidden="true" size={19} strokeWidth={active ? 2.2 : 1.8} />
-              {label}
+              <span>{label}</span>
             </Link>
           );
         })}
@@ -156,16 +183,16 @@ export function DesktopSidebar() {
           className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${isActive(pathname, "/account") ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-soft hover:text-ink"}`}
         >
           <CircleUserRound aria-hidden="true" size={20} />
-          <div className="min-w-0 flex-1 text-left">
+          <div className="min-w-0 flex-1 text-left rtl:text-right">
             <p className="truncate font-semibold text-ink">
-              {user ? user.displayName || user.email.split("@")[0] : "Account & settings"}
+              {user ? user.displayName || user.email.split("@")[0] : t("navAccount")}
             </p>
             {user ? (
               <p className="flex items-center gap-1.5 text-[0.68rem] font-medium text-accent">
-                <span className="inline-block size-1.5 rounded-full bg-accent" /> Synced
+                <span className="inline-block size-1.5 rounded-full bg-accent" /> {t("synced")}
               </p>
             ) : (
-              <p className="text-[0.68rem] font-medium text-muted">Guest mode</p>
+              <p className="text-[0.68rem] font-medium text-muted">{t("navGuestMode")}</p>
             )}
           </div>
         </Link>
@@ -173,10 +200,10 @@ export function DesktopSidebar() {
           <button
             type="button"
             onClick={handleSignOut}
-            className="flex min-h-9 w-full items-center gap-3 rounded-xl px-3 text-xs font-semibold text-muted hover:bg-surface-soft hover:text-danger text-left transition-colors"
+            className="flex min-h-9 w-full items-center gap-3 rounded-xl px-3 text-xs font-semibold text-muted hover:bg-surface-soft hover:text-danger text-left rtl:text-right transition-colors"
           >
             <LogOut aria-hidden="true" size={16} />
-            Sign out
+            <span>{t("navSignOut")}</span>
           </button>
         ) : (
           <Link
@@ -184,7 +211,7 @@ export function DesktopSidebar() {
             className="flex min-h-9 items-center gap-3 rounded-xl px-3 text-xs font-semibold text-accent hover:bg-accent-soft transition-colors"
           >
             <LogIn aria-hidden="true" size={16} />
-            Sign in
+            <span>{t("navSignIn")}</span>
           </Link>
         )}
       </div>
@@ -202,13 +229,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           data-no-print
         >
           <Brand href="/home" />
-          <Link
-            href="/more"
-            className="grid size-11 place-items-center rounded-xl text-muted hover:bg-surface-soft hover:text-ink"
-            aria-label="More Quran tools and account"
-          >
-            <CircleUserRound aria-hidden="true" size={22} />
-          </Link>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher showIcon={false} />
+            <Link
+              href="/more"
+              className="grid size-11 place-items-center rounded-xl text-muted hover:bg-surface-soft hover:text-ink"
+              aria-label="More Quran tools and account"
+            >
+              <CircleUserRound aria-hidden="true" size={22} />
+            </Link>
+          </div>
         </header>
         {children}
       </main>

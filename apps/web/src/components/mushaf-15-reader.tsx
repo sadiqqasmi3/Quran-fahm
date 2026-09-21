@@ -39,6 +39,7 @@ import {
   resolveInitialMushafPosition,
   saveMushafPosition,
 } from "@/lib/mushaf-storage";
+import { useLocale } from "@/lib/i18n/locale-context";
 
 export type MushafTheme = "parchment" | "sepia" | "night";
 
@@ -145,7 +146,7 @@ export function Mushaf15Reader({
   const [paraSelectorOpen, setParaSelectorOpen] = useState(false);
   const [pageJumpOpen, setPageJumpOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [helpLang, setHelpLang] = useState<"ur" | "en">("ur");
+  const { locale, setLocale, isUrdu } = useLocale();
   const [targetPageInput, setTargetPageInput] = useState(String(currentPage));
 
   // Touch & wheel handling
@@ -564,7 +565,7 @@ export function Mushaf15Reader({
             <button
               type="button"
               onClick={toggleReadingDirection}
-              title={`Reading direction: ${readingDirection === "rtl" ? "Quran RTL (Page 1 on right)" : "Digital LTR (Page 1 on left)"}. Click to toggle.`}
+              title={readingDirection === "rtl" ? "قرآنی انداز (پہلا صفحہ دائیں طرف)" : "کتابی انداز"}
               className={`flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition ${
                 readingDirection === "rtl"
                   ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
@@ -572,7 +573,15 @@ export function Mushaf15Reader({
               }`}
             >
               <ArrowLeftRight size={14} />
-              <span className="hidden xl:inline">{readingDirection === "rtl" ? "Quran RTL" : "Digital LTR"}</span>
+              <span className="hidden xl:inline">
+                {isUrdu
+                  ? readingDirection === "rtl"
+                    ? "قرآنی انداز"
+                    : "کتابی انداز"
+                  : readingDirection === "rtl"
+                    ? "Quran Flow"
+                    : "Book Flow"}
+              </span>
             </button>
 
             <Link
@@ -973,40 +982,40 @@ export function Mushaf15Reader({
           aria-labelledby="reader-help-title"
         >
           <div
-            dir={helpLang === "ur" ? "rtl" : "ltr"}
+            dir={isUrdu ? "rtl" : "ltr"}
             className={`w-full max-w-lg rounded-3xl border border-white/20 bg-[#141d18] p-6 text-white shadow-2xl max-h-[85vh] overflow-y-auto ${
-              helpLang === "ur" ? "font-urdu text-right" : "text-left"
+              isUrdu ? "font-urdu text-right" : "text-left"
             }`}
           >
             {/* Header with Close & Language Switcher */}
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div>
                 <h3 id="reader-help-title" className="text-lg font-bold text-emerald-300">
-                  {helpLang === "ur" ? "مصحف استعمال کرنے کا طریقہ" : "Mushaf Reader Quick Guide"}
+                  {isUrdu ? "مصحف استعمال کرنے کا طریقہ" : "Mushaf Reader Quick Guide"}
                 </h3>
                 <p className="text-xs text-white/60 mt-0.5">
-                  {helpLang === "ur" ? "آسان ورق گردانی اور تمام سہولیات" : "Gesture, scroll, and navigation tips"}
+                  {isUrdu ? "آسان ورق گردانی اور تمام سہولیات" : "Gesture, scroll, and navigation tips"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex rounded-xl bg-white/10 p-0.5 text-xs font-semibold">
                   <button
                     type="button"
-                    onClick={() => setHelpLang("ur")}
+                    onClick={() => setLocale("ur")}
                     className={`px-2.5 py-1 rounded-lg transition ${
-                      helpLang === "ur" ? "bg-emerald-600 text-white" : "text-white/60 hover:text-white"
+                      isUrdu ? "bg-emerald-600 text-white" : "text-white/60 hover:text-white"
                     }`}
                   >
                     اردو
                   </button>
                   <button
                     type="button"
-                    onClick={() => setHelpLang("en")}
+                    onClick={() => setLocale("en")}
                     className={`px-2.5 py-1 rounded-lg transition ${
-                      helpLang === "en" ? "bg-emerald-600 text-white" : "text-white/60 hover:text-white"
+                      !isUrdu ? "bg-emerald-600 text-white" : "text-white/60 hover:text-white"
                     }`}
                   >
-                    EN
+                    English
                   </button>
                 </div>
                 <button
@@ -1022,7 +1031,7 @@ export function Mushaf15Reader({
 
             {/* Quick Tips Body */}
             <div className="mt-4 space-y-3.5 text-xs sm:text-sm">
-              {helpLang === "ur" ? (
+              {isUrdu ? (
                 <>
                   <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
                     <span className="text-xl">👆</span>
@@ -1047,9 +1056,9 @@ export function Mushaf15Reader({
                   <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
                     <span className="text-xl">🔄</span>
                     <div>
-                      <h4 className="font-bold text-white text-sm">پڑھنے کا رخ (Quran RTL / Digital LTR)</h4>
+                      <h4 className="font-bold text-white text-sm">پڑھنے کا رخ (قرآنی انداز یا کتابی انداز)</h4>
                       <p className="text-white/70 text-xs mt-1">
-                        اوپر موجود ڈائریکشن بٹن سے روایتی قرآنی انداز (پہلا صفحہ دائیں طرف) یا ڈیجیٹل انداز منتخب کریں۔
+                        اوپر موجود ڈائریکشن بٹن سے روایتی قرآنی انداز (پہلا صفحہ دائیں طرف) یا عام کتابی انداز منتخب کریں۔
                       </p>
                     </div>
                   </div>
@@ -1099,7 +1108,7 @@ export function Mushaf15Reader({
                   <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
                     <span className="text-xl">🔄</span>
                     <div>
-                      <h4 className="font-bold text-white text-sm">Reading Direction (Quran RTL / LTR)</h4>
+                      <h4 className="font-bold text-white text-sm">Reading Flow (Quran Flow or Book Flow)</h4>
                       <p className="text-white/70 text-xs mt-1">
                         Toggle between traditional Quran flow (Page 1 on the right) and standard digital left-to-right flow.
                       </p>
@@ -1136,7 +1145,7 @@ export function Mushaf15Reader({
                 target="_blank"
                 className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500 transition"
               >
-                <span>{helpLang === "ur" ? "مکمل ایپ گائیڈ دیکھیں" : "View Full App Guide"}</span>
+                <span>{isUrdu ? "مکمل ایپ گائیڈ دیکھیں" : "View Full App Guide"}</span>
                 <ExternalLink size={14} />
               </Link>
               <button
@@ -1144,7 +1153,7 @@ export function Mushaf15Reader({
                 onClick={() => setHelpOpen(false)}
                 className="w-full sm:w-auto rounded-xl bg-white/10 px-4 py-2.5 text-xs font-semibold text-white/80 hover:bg-white/20 transition text-center"
               >
-                {helpLang === "ur" ? "ٹھیک ہے، سمجھ گیا" : "Got it, thanks"}
+                {isUrdu ? "ٹھیک ہے، سمجھ گیا" : "Got it, thanks"}
               </button>
             </div>
           </div>

@@ -19,6 +19,8 @@ import {
   filterGuideSections,
   getGuideContent,
 } from "@/lib/app-guide-data";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { LanguageSwitcher } from "./language-switcher";
 
 export interface AppGuideWorkspaceProps {
   initialLanguage?: GuideLanguage;
@@ -26,51 +28,14 @@ export interface AppGuideWorkspaceProps {
 }
 
 export function AppGuideWorkspace({
-  initialLanguage = "ur",
   showHeaderBack = true,
 }: AppGuideWorkspaceProps) {
-  const [lang, setLang] = useState<GuideLanguage>(initialLanguage);
+  const { locale, setLocale, isUrdu, dir } = useLocale();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
-  // Synchronize language preference with localStorage and user preferences
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = window.localStorage.getItem("qf:guide-lang");
-        if (stored === "ur" || stored === "en") {
-          setLang(stored);
-        } else {
-          // Detect user preference from web-preferences if available
-          const prefStr = window.localStorage.getItem("qf:web-preferences");
-          if (prefStr) {
-            const parsed = JSON.parse(prefStr);
-            if (parsed.locale === "ur" || parsed.locale === "en") {
-              setLang(parsed.locale);
-            }
-          }
-        }
-      } catch {
-        // Storage fallback
-      }
-    }
-  }, []);
-
-  const switchLanguage = (newLang: GuideLanguage) => {
-    setLang(newLang);
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.setItem("qf:guide-lang", newLang);
-      } catch {
-        // Ignore
-      }
-    }
-  };
-
-  const isUrdu = lang === "ur";
-  const dir = isUrdu ? "rtl" : "ltr";
-  const content = useMemo(() => getGuideContent(lang), [lang]);
+  const content = useMemo(() => getGuideContent(locale), [locale]);
 
   // Filter sections by search query and category
   const filteredSections = useMemo(
@@ -81,7 +46,7 @@ export function AppGuideWorkspace({
   return (
     <div
       dir={dir}
-      lang={lang}
+      lang={locale}
       className={`min-h-screen bg-canvas text-ink transition-colors ${
         isUrdu ? "font-urdu" : "font-sans"
       }`}
@@ -109,34 +74,8 @@ export function AppGuideWorkspace({
             </div>
           </div>
 
-          {/* Prominent Language & Direction Switcher */}
-          <div className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface-soft p-1 shadow-sm">
-            <button
-              type="button"
-              onClick={() => switchLanguage("ur")}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-semibold transition ${
-                isUrdu
-                  ? "bg-accent text-on-action shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-              title="اردو (دائیں سے بائیں - RTL)"
-            >
-              <Languages size={15} />
-              <span>اردو (RTL)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => switchLanguage("en")}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-semibold transition ${
-                !isUrdu
-                  ? "bg-accent text-on-action shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-              title="English (Left to Right - LTR)"
-            >
-              <span>English (LTR)</span>
-            </button>
-          </div>
+          {/* Prominent Language Switcher */}
+          <LanguageSwitcher />
         </div>
       </header>
 

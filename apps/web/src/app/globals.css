@@ -52,6 +52,21 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+html[lang="ur"] body,
+html[data-locale="ur"] body,
+body.font-urdu {
+  font-family: "Noto Nastaliq Urdu", "Noto Naskh Arabic Variable", serif;
+  line-height: 1.85;
+}
+
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="ltr"] {
+  text-align: left;
+}
+
 button,
 input,
 select,

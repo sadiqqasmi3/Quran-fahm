@@ -107,8 +107,8 @@ export const URDU_GUIDE_CONTENT: GuideContent = {
         },
         {
           number: "۲",
-          title: "پڑھنے کا رخ تبدیل کرنا (RTL / LTR)",
-          desc: "اوپر موجود 'Quran RTL' بٹن سے آپ روایتی انداز (پہلا صفحہ دائیں طرف) یا ڈیجیٹل کتابی انداز کا انتخاب کر سکتے ہیں۔",
+          title: "پڑھنے کا قرآنی یا کتابی رخ",
+          desc: "اوپر موجود رخ کے بٹن سے آپ روایتی قرآنی انداز (پہلا صفحہ دائیں طرف) یا عام ڈیجیٹل کتابی انداز کا انتخاب کر سکتے ہیں۔",
         },
         {
           number: "۳",
@@ -321,8 +321,8 @@ export const ENGLISH_GUIDE_CONTENT: GuideContent = {
         },
         {
           number: "2",
-          title: "Reading Direction (Quran RTL vs Digital LTR)",
-          desc: "Click the 'Quran RTL' toggle in the toolbar to match traditional Quran reading (Page 1 on the right) or standard digital book flow.",
+          title: "Traditional Quran Flow vs Digital Flow",
+          desc: "Use the reading flow toggle in the top toolbar to switch between traditional Quran orientation (Page 1 on the right) or standard digital book flow.",
         },
         {
           number: "3",

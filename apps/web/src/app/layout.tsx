@@ -6,6 +6,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { ThemeHydrator } from "@/components/theme-hydrator";
+import { LocaleProvider } from "@/lib/i18n/locale-context";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,17 +28,19 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" data-theme="light" data-scroll-behavior="smooth">
+    <html lang="ur" dir="rtl" data-theme="light" data-scroll-behavior="smooth">
       <body>
-        <ThemeHydrator />
-        <ServiceWorkerRegistration />
-        <a
-          href="#main-content"
-          className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-lg bg-hero px-4 py-3 text-sm font-semibold text-on-hero transition-transform focus:translate-y-0"
-        >
-          Skip to content
-        </a>
-        {children}
+        <LocaleProvider>
+          <ThemeHydrator />
+          <ServiceWorkerRegistration />
+          <a
+            href="#main-content"
+            className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-lg bg-hero px-4 py-3 text-sm font-semibold text-on-hero transition-transform focus:translate-y-0"
+          >
+            Skip to content
+          </a>
+          {children}
+        </LocaleProvider>
       </body>
     </html>
   );

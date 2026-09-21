@@ -14,6 +14,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { z } from "zod";
 import { apiRequest, getCurrentUser, logout } from "@/lib/api";
 import { applyThemePreference } from "@/lib/theme";
+import { useLocale } from "@/lib/i18n/locale-context";
 
 interface LocalPreferences {
   locale: "ur" | "en";
@@ -103,12 +104,17 @@ export function AccountSettings() {
     };
   }, []);
 
+  const { setLocale, t } = useLocale();
+
   function updatePreference<Key extends keyof LocalPreferences>(
     key: Key,
     value: LocalPreferences[Key],
   ) {
     setPreferences((current) => ({ ...current, [key]: value }));
     if (key === "theme") applyThemePreference(value);
+    if (key === "locale" && (value === "ur" || value === "en")) {
+      setLocale(value as "ur" | "en");
+    }
   }
 
   async function savePreferences(event: FormEvent<HTMLFormElement>) {
