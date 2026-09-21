@@ -1,0 +1,733 @@
+"use client";
+
+import { type FC, type TouchEvent, useCallback, useEffect, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bookmark,
+  BookOpenText,
+  CheckCircle2,
+  ChevronDown,
+  Download,
+  ExternalLink,
+  Eye,
+  Maximize2,
+  Minimize2,
+  Moon,
+  RotateCcw,
+  Share2,
+  Sun,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
+import Link from "next/link";
+import {
+  PARAS,
+  type ParaMetadata,
+  getPara,
+  mushafPageImageUrl,
+  mushafParaPdfUrl,
+} from "@/lib/para-data";
+import { READING_HISTORY_CHANGED_EVENT, recordReadingHistory } from "@/lib/reading-history-store";
+
+export type MushafTheme = "parchment" | "sepia" | "night";
+
+export interface Mushaf15ReaderProps {
+  initialPara?: number | undefined;
+  initialPage?: number | undefined;
+  onClose?: (() => void) | undefined;
+  onCompletePara?: ((paraNumber: number) => Promise<void> | void) | undefined;
+  isClaimedPara?: boolean | undefined;
+}
+
+export function Mushaf15Reader({
+  initialPara = 1,
+  initialPage,
+  onClose,
+  onCompletePara,
+  isClaimedPara = false,
+}: Mushaf15ReaderProps) {
+  const [paraNumber, setParaNumber] = useState(Math.max(1, Math.min(30, initialPara)));
+  const currentPara = getPara(paraNumber);
+
+  // Mushaf page number (2 to 611)
+  const [currentPage, setCurrentPage] = useState<number>(() => {
+    if (
+      initialPage &&
+      initialPage >= currentPara.startMushafPage &&
+      initialPage <= currentPara.endMushafPage
+    ) {
+      return initialPage;
+    }
+    return currentPara.startMushafPage;
+  });
+
+  const [theme, setTheme] = useState<MushafTheme>("parchment");
+  const [zoom, setZoom] = useState<number>(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hudVisible, setHudVisible] = useState(true);
+  const [turnDirection, setTurnDirection] = useState<"next" | "prev" | null>(null);
+  const [isTurning, setIsTurning] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [paraSelectorOpen, setParaSelectorOpen] = useState(false);
+  const [pageJumpOpen, setPageJumpOpen] = useState(false);
+  const [targetPageInput, setTargetPageInput] = useState(String(currentPage));
+
+  // Touch swipe handling
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Record reading history on page visit
+  useEffect(() => {
+    recordReadingHistory(window.localStorage, {
+      surahNumber: currentPara.start.surah,
+      ayahNumber: currentPara.start.ayah,
+      surahNameArabic: currentPara.nameArabic,
+      surahNameEnglish: `Para ${currentPara.number} (${currentPara.nameLatin})`,
+      mode: "mushaf",
+      mushafPage: currentPage,
+    });
+    window.dispatchEvent(new Event(READING_HISTORY_CHANGED_EVENT));
+  }, [currentPage, currentPara]);
+
+  function handlePageJump(e: React.FormEvent) {
+    e.preventDefault();
+    const pageNum = parseInt(targetPageInput, 10);
+    if (!Number.isNaN(pageNum) && pageNum >= 2 && pageNum <= 611) {
+      const foundPara = PARAS.find(
+        (p) => pageNum >= p.startMushafPage && pageNum <= p.endMushafPage,
+      );
+      if (foundPara && foundPara.number !== paraNumber) {
+        setParaNumber(foundPara.number);
+      }
+      setCurrentPage(pageNum);
+      setPageJumpOpen(false);
+    }
+  }
+
+  // Keep page within bounds of current Para when Para changes
+  useEffect(() => {
+    if (currentPage < currentPara.startMushafPage || currentPage > currentPara.endMushafPage) {
+      setCurrentPage(currentPara.startMushafPage);
+    }
+  }, [currentPara, currentPage]);
+
+  // Preload adjacent pages for zero-latency turning
+  useEffect(() => {
+    const pagesToPreload = [
+      currentPage - 2,
+      currentPage - 1,
+      currentPage + 1,
+      currentPage + 2,
+    ].filter((p) => p >= 2 && p <= 611);
+
+    pagesToPreload.forEach((p) => {
+      const img = new Image();
+      img.src = mushafPageImageUrl(p);
+    });
+  }, [currentPage]);
+
+  // Toggle fullscreen
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current?.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch {
+      setIsFullscreen((prev) => !prev);
+    }
+  }, []);
+
+  // Page turn navigation with 3D animation
+  const goToPage = useCallback(
+    (targetPage: number, direction: "next" | "prev") => {
+      if (isTurning) return;
+      if (targetPage < 2 || targetPage > 611) return;
+
+      // Detect if crossing into another Para
+      const targetPara = PARAS.find(
+        (p) => targetPage >= p.startMushafPage && targetPage <= p.endMushafPage,
+      );
+      if (targetPara && targetPara.number !== paraNumber) {
+        setParaNumber(targetPara.number);
+      }
+
+      setTurnDirection(direction);
+      setIsTurning(true);
+
+      // Perform the turn
+      setTimeout(() => {
+        setCurrentPage(targetPage);
+        setTimeout(() => {
+          setIsTurning(false);
+          setTurnDirection(null);
+        }, 280);
+      }, 160);
+    },
+    [isTurning, paraNumber],
+  );
+
+  // In RTL Arabic reading: Next page is to the LEFT (flips leftward)
+  const nextPage = useCallback(() => {
+    if (currentPage < 611) {
+      goToPage(currentPage + 1, "next");
+    }
+  }, [currentPage, goToPage]);
+
+  // Previous page is to the RIGHT (flips back rightward)
+  const prevPage = useCallback(() => {
+    if (currentPage > 2) {
+      goToPage(currentPage - 1, "prev");
+    }
+  }, [currentPage, goToPage]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Don't intercept if modifier keys or typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) {
+        return;
+      }
+      if (e.key === "ArrowLeft" || e.key === "PageDown") {
+        e.preventDefault();
+        nextPage();
+      } else if (e.key === "ArrowRight" || e.key === "PageUp") {
+        e.preventDefault();
+        prevPage();
+      } else if (e.key === "Escape") {
+        if (isFullscreen) {
+          void toggleFullscreen();
+        } else if (onClose) {
+          onClose();
+        }
+      } else if (e.key === "f" || e.key === "F") {
+        void toggleFullscreen();
+      } else if (e.key === "h" || e.key === "H") {
+        setHudVisible((v) => !v);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [nextPage, prevPage, isFullscreen, toggleFullscreen, onClose]);
+
+  // Touch gestures for mobile swiping
+  const handleTouchStart = (e: TouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    touchStartX.current = t.clientX;
+    touchStartY.current = t.clientY;
+  };
+
+  const handleTouchEnd = (e: TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const deltaX = t.clientX - touchStartX.current;
+    const deltaY = t.clientY - touchStartY.current;
+
+    // Minimum swipe distance of 40px, ensuring horizontal intent
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      if (deltaX < 0) {
+        // Swiped left -> advance page forward in RTL
+        nextPage();
+      } else {
+        // Swiped right -> go back
+        prevPage();
+      }
+    }
+
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
+
+  // Para completion action for Khatm members
+  const handleCompletePara = async () => {
+    if (!onCompletePara || completing) return;
+    setCompleting(true);
+    try {
+      await onCompletePara(paraNumber);
+      setIsCompleted(true);
+    } catch {
+      // Handled by parent
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const pageInPara = currentPage - currentPara.startMushafPage + 1;
+  const isFinalPageOfPara = currentPage === currentPara.endMushafPage;
+  const currentImageUrl = mushafPageImageUrl(currentPage);
+
+  // Theme styles
+  const themeBg =
+    theme === "parchment"
+      ? "bg-[#18231d] text-[#e8eee9]"
+      : theme === "sepia"
+        ? "bg-[#1f1a14] text-[#ece4d6]"
+        : "bg-[#0b100d] text-[#d6ded9]";
+
+  const pageFrameStyle =
+    theme === "parchment"
+      ? "border-[#2b3a30] shadow-[0_20px_60px_rgba(0,0,0,0.55)]"
+      : theme === "sepia"
+        ? "border-[#3d3327] shadow-[0_20px_60px_rgba(0,0,0,0.65)]"
+        : "border-[#1c2921] shadow-[0_20px_60px_rgba(0,0,0,0.85)]";
+
+  return (
+    <div
+      ref={containerRef}
+      role="region"
+      aria-label="15-Line Mushaf Reader"
+      className={`fixed inset-0 z-50 flex flex-col select-none overflow-hidden ${themeBg} transition-colors duration-300`}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* ── TOP HUD / CONTROLS ── */}
+      <header
+        className={`shrink-0 border-b border-white/10 bg-black/40 backdrop-blur-md px-3 py-2.5 sm:px-6 transition-all duration-300 ${
+          hudVisible
+            ? "translate-y-0 opacity-100"
+            : "-translate-y-full opacity-0 pointer-events-none"
+        }`}
+      >
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-4">
+          {/* Left: Close & Para Selector */}
+          <div className="flex items-center gap-2">
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Exit Mushaf reader"
+                className="flex size-10 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:scale-95 transition"
+              >
+                <X size={20} />
+              </button>
+            )}
+
+            {/* Para Selector Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setParaSelectorOpen((prev) => !prev)}
+                className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-white/20 transition"
+              >
+                <span className="font-quran text-base sm:text-lg" dir="rtl">
+                  {currentPara.nameArabic}
+                </span>
+                <span className="text-white/70">
+                  پارہ {currentPara.number} ({currentPara.nameLatin})
+                </span>
+                <ChevronDown
+                  size={15}
+                  className={`transition-transform ${paraSelectorOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {/* Para Selector Menu */}
+              {paraSelectorOpen && (
+                <div className="absolute left-0 top-full mt-2 z-50 max-h-[70vh] w-72 overflow-y-auto rounded-2xl border border-white/15 bg-[#141d18] p-2 shadow-2xl backdrop-blur-xl">
+                  <div className="px-3 py-2 text-[0.7rem] font-bold uppercase tracking-wider text-white/50 border-b border-white/10">
+                    Jump to Para (30 Juz)
+                  </div>
+                  <div className="mt-1 divide-y divide-white/5">
+                    {PARAS.map((p) => (
+                      <button
+                        key={p.number}
+                        type="button"
+                        onClick={() => {
+                          setParaNumber(p.number);
+                          setCurrentPage(p.startMushafPage);
+                          setParaSelectorOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-xs sm:text-sm rounded-lg transition ${
+                          p.number === paraNumber
+                            ? "bg-emerald-600/30 text-emerald-300 font-semibold"
+                            : "text-white/80 hover:bg-white/10"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="size-5 rounded-full bg-white/10 text-[0.7rem] font-bold grid place-items-center">
+                            {p.number}
+                          </span>
+                          <span>{p.nameLatin}</span>
+                        </span>
+                        <span className="font-quran text-base" dir="rtl">
+                          {p.nameArabic}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {/* Mobile Page indicator button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetPageInput(String(currentPage));
+                      setPageJumpOpen(true);
+                    }}
+                    className="flex items-center gap-1 rounded-xl bg-white/10 px-2.5 py-2 text-xs font-semibold text-white md:hidden hover:bg-white/20 transition"
+                    title="Jump to page"
+                  >
+                    صفحہ {currentPage}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Center: Current Mushaf Page Info with clickable Page Jump */}
+          <div className="text-center hidden md:block">
+            <button
+              type="button"
+              onClick={() => {
+                setTargetPageInput(String(currentPage));
+                setPageJumpOpen(true);
+              }}
+              className="rounded-lg px-2.5 py-1 text-sm font-semibold tracking-wide hover:bg-white/10 active:scale-95 transition"
+              title="Click to jump to any page (2–611)"
+            >
+              صفحہ {currentPage}{" "}
+              <span className="text-xs font-normal text-white/60">
+                (پارہ {currentPara.number} کا صفحہ {pageInPara} / {currentPara.totalMushafPages})
+              </span>
+            </button>
+            <p className="text-[0.7rem] text-white/50">
+              Surah {currentPara.start.surah}:{currentPara.start.ayah} — {currentPara.end.surah}:
+              {currentPara.end.ayah}
+            </p>
+          </div>
+
+          {/* Right: Tools (Study Reader link, Theme, Zoom, PDF Download, Fullscreen) */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Link
+              href={`/quran?surah=${currentPara.start.surah}&ayah=${currentPara.start.ayah}`}
+              className="flex items-center gap-1.5 rounded-xl bg-white/10 px-2.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
+              title="Open verses in interactive Study Reader"
+            >
+              <BookOpenText size={15} />
+              <span className="hidden xl:inline">Study Verses</span>
+            </Link>
+            {/* Theme switcher */}
+            <div className="flex items-center rounded-xl bg-white/10 p-0.5">
+              <button
+                type="button"
+                onClick={() => setTheme("parchment")}
+                title="Parchment Theme"
+                className={`p-1.5 rounded-lg text-xs transition ${theme === "parchment" ? "bg-white/20 text-emerald-300" : "text-white/60 hover:text-white"}`}
+              >
+                <Sun size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme("sepia")}
+                title="Warm Sepia Theme"
+                className={`p-1.5 rounded-lg text-xs transition ${theme === "sepia" ? "bg-white/20 text-amber-300" : "text-white/60 hover:text-white"}`}
+              >
+                <Eye size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme("night")}
+                title="Night Theme"
+                className={`p-1.5 rounded-lg text-xs transition ${theme === "night" ? "bg-white/20 text-blue-300" : "text-white/60 hover:text-white"}`}
+              >
+                <Moon size={15} />
+              </button>
+            </div>
+
+            {/* Zoom Controls */}
+            <div className="hidden sm:flex items-center rounded-xl bg-white/10 p-0.5">
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.max(0.8, Number((z - 0.1).toFixed(1))))}
+                title="Zoom Out"
+                disabled={zoom <= 0.8}
+                className="p-1.5 rounded-lg text-white/60 hover:text-white disabled:opacity-30 transition"
+              >
+                <ZoomOut size={15} />
+              </button>
+              <span className="px-1.5 text-[0.7rem] font-mono text-white/70">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.min(1.6, Number((z + 0.1).toFixed(1))))}
+                title="Zoom In"
+                disabled={zoom >= 1.6}
+                className="p-1.5 rounded-lg text-white/60 hover:text-white disabled:opacity-30 transition"
+              >
+                <ZoomIn size={15} />
+              </button>
+            </div>
+
+            {/* Local PDF Download */}
+            <a
+              href={mushafParaPdfUrl(currentPara.number)}
+              download={`Para-${String(currentPara.number).padStart(2, "0")}-${currentPara.nameLatin}.pdf`}
+              title={`Download Para ${currentPara.number} 15-Line PDF (${currentPara.totalMushafPages} pages)`}
+              className="flex items-center gap-1.5 rounded-xl bg-white/10 px-2.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
+            >
+              <Download size={14} />
+              <span className="hidden lg:inline">PDF</span>
+            </a>
+
+            {/* Fullscreen Toggle */}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "Exit Fullscreen (Esc)" : "Fullscreen (F)"}
+              className="flex size-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+            >
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ── MAIN READING CANVAS WITH 3D PAGE TURN ── */}
+      <main
+        className="relative flex-1 flex items-center justify-center overflow-hidden p-2 sm:p-4 cursor-pointer"
+        onClick={(e) => {
+          // Click left half to advance (RTL forward), click right half to go back
+          const rect = e.currentTarget.getBoundingClientRect();
+          const clickX = e.clientX - rect.left;
+          if (clickX < rect.width * 0.35) {
+            nextPage();
+          } else if (clickX > rect.width * 0.65) {
+            prevPage();
+          } else {
+            // Toggle HUD when clicking in center zone
+            setHudVisible((v) => !v);
+          }
+        }}
+      >
+        {/* 3D Book Presentation Container */}
+        <div
+          className="relative max-h-full max-w-full flex items-center justify-center"
+          style={{
+            perspective: "2400px",
+            transform: `scale(${zoom})`,
+            transition: "transform 0.2s ease-out",
+          }}
+        >
+          {/* Animated Page Leaf */}
+          <div
+            className={`relative rounded-xl sm:rounded-2xl border ${pageFrameStyle} overflow-hidden bg-white transition-all duration-300 ${
+              isTurning && turnDirection === "next"
+                ? "scale-[0.98] -translate-x-3 rotate-[-1deg] opacity-90 shadow-2xl"
+                : isTurning && turnDirection === "prev"
+                  ? "scale-[0.98] translate-x-3 rotate-[1deg] opacity-90 shadow-2xl"
+                  : "scale-100 translate-x-0 rotate-0 opacity-100"
+            }`}
+            style={{
+              maxHeight: "calc(100dvh - 9.5rem)",
+              boxShadow:
+                theme === "night"
+                  ? "0 10px 40px rgba(0,0,0,0.9), inset 0 0 40px rgba(0,0,0,0.7)"
+                  : "0 12px 50px rgba(0,0,0,0.45), inset 0 0 20px rgba(0,0,0,0.06)",
+            }}
+          >
+            {/* Mushaf Page Image */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={currentImageUrl}
+              alt={`15-Line Mushaf Page ${currentPage} - Para ${currentPara.number}`}
+              className={`block max-h-[calc(100dvh-10rem)] w-auto object-contain transition duration-200 ${
+                theme === "night" ? "invert-[0.92] hue-rotate-180 brightness-95 contrast-125" : ""
+              }`}
+              draggable={false}
+              loading="eager"
+            />
+
+            {/* Real-time Spine Fold Shadow (adds 3D depth to center fold) */}
+            <div
+              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-black/15 to-transparent"
+              aria-hidden="true"
+            />
+            <div
+              className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-black/15 to-transparent"
+              aria-hidden="true"
+            />
+
+            {/* Subtle turn shadow during animation */}
+            {isTurning && (
+              <div
+                className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${
+                  turnDirection === "next"
+                    ? "from-black/25 via-transparent to-transparent"
+                    : "from-transparent via-transparent to-black/25"
+                } transition-opacity duration-200`}
+                aria-hidden="true"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Floating Side Turn Hitboxes with Visual Indicator */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            nextPage();
+          }}
+          disabled={currentPage >= 611}
+          aria-label="Next Page (Advance in RTL)"
+          className="absolute left-2 sm:left-4 z-20 flex size-11 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:bg-black/70 hover:text-white active:scale-95 disabled:opacity-0 transition"
+        >
+          <ArrowLeft size={22} />
+        </button>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            prevPage();
+          }}
+          disabled={currentPage <= 2}
+          aria-label="Previous Page"
+          className="absolute right-2 sm:right-4 z-20 flex size-11 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:bg-black/70 hover:text-white active:scale-95 disabled:opacity-0 transition"
+        >
+          <ArrowRight size={22} />
+        </button>
+      </main>
+
+      {/* ── BOTTOM HUD & SCRUBBER ── */}
+      <footer
+        className={`shrink-0 border-t border-white/10 bg-black/40 backdrop-blur-md px-3 py-2.5 sm:px-6 transition-all duration-300 ${
+          hudVisible
+            ? "translate-y-0 opacity-100"
+            : "translate-y-full opacity-0 pointer-events-none"
+        }`}
+      >
+        <div className="mx-auto flex max-w-5xl flex-col gap-2">
+          {/* Page Scrubber Range */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono text-white/60 min-w-8 text-right">
+              {currentPara.startMushafPage}
+            </span>
+            <input
+              type="range"
+              min={currentPara.startMushafPage}
+              max={currentPara.endMushafPage}
+              value={currentPage}
+              onChange={(e) => {
+                const p = Number(e.target.value);
+                goToPage(p, p > currentPage ? "next" : "prev");
+              }}
+              aria-label="Scrub through pages of this Para"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-white/20 accent-emerald-400 focus:outline-none"
+            />
+            <span className="text-xs font-mono text-white/60 min-w-8">
+              {currentPara.endMushafPage}
+            </span>
+          </div>
+
+          {/* Action Row */}
+          <div className="flex items-center justify-between gap-3 text-xs">
+            {/* Quick stats on mobile */}
+            <div className="text-white/70 sm:hidden">
+              صفحہ {currentPage} (پارہ {currentPara.number})
+            </div>
+
+            {/* Read in Digital Reader Link */}
+            <Link
+              href={`/quran?surah=${currentPara.start.surah}&ayah=${currentPara.start.ayah}`}
+              className="inline-flex items-center gap-1.5 font-medium text-emerald-400 hover:text-emerald-300 hover:underline"
+            >
+              <span>Switch to Ayah-by-Ayah translation reader</span>
+              <ExternalLink size={12} />
+            </Link>
+
+            {/* Khatm Member Completion Confirmation */}
+            {isClaimedPara && (
+              <div className="flex items-center gap-2">
+                {isCompleted ? (
+                  <span className="flex items-center gap-1.5 font-semibold text-emerald-400">
+                    <CheckCircle2 size={16} /> Completed! Alhamdu lillah
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCompletePara}
+                    disabled={completing}
+                    className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-1.5 font-semibold text-white transition ${
+                      isFinalPageOfPara
+                        ? "bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-900/40 animate-pulse"
+                        : "bg-white/15 hover:bg-white/25"
+                    }`}
+                  >
+                    <CheckCircle2 size={15} />
+                    {completing
+                      ? "Marking…"
+                      : isFinalPageOfPara
+                        ? "Mark Para Complete"
+                        : `Mark Para ${currentPara.number} Complete`}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </footer>
+
+      {/* ── GO TO PAGE MODAL ── */}
+      {pageJumpOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-labelledby="page-jump-title"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-[#141d18] p-5 text-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 id="page-jump-title" className="text-base font-semibold">
+                Go to Mushaf Page
+              </h3>
+              <button
+                type="button"
+                onClick={() => setPageJumpOpen(false)}
+                className="grid size-8 place-items-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white"
+                aria-label="Close page jump modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handlePageJump} className="mt-4">
+              <label htmlFor="jump-page-input" className="block text-xs text-white/70">
+                Enter page number (2 to 611):
+              </label>
+              <div className="mt-2 flex gap-2">
+                <input
+                  id="jump-page-input"
+                  type="number"
+                  min={2}
+                  max={611}
+                  value={targetPageInput}
+                  onChange={(e) => setTargetPageInput(e.target.value)}
+                  className="min-h-11 flex-1 rounded-xl border border-white/20 bg-black/40 px-3 text-center text-lg font-bold text-white focus:border-emerald-500 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="min-h-11 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500"
+                >
+                  Go
+                </button>
+              </div>
+            </form>
+            <div className="mt-4 border-t border-white/10 pt-3 text-xs text-white/50">
+              <p>
+                Current: Page {currentPage} of 611 · Para {currentPara.number}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

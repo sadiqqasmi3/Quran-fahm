@@ -1,100 +1,189 @@
 # Quran Feham | قرآن فہم
 
-**Understand what you recite.**
+**Understand · Read · Recite · Together**
 
-Quran Feham is a mobile-first Quran comprehension web app for Urdu-speaking Muslims who can already read Arabic but want to understand Quranic Arabic when reading or listening.
+Quran Feham is a personal Quran comprehension, reading, recitation and
+family-learning platform for Muslims who can already read Quranic Arabic but do
+not yet understand enough of what they read or hear. Urdu is the first bridge;
+the long-term goal is greater direct understanding and less dependence on
+translation.
 
-The app is intentionally not a generic Islamic super-app. Its product loop is:
+The product is deliberately Quran-focused. It has four jobs:
 
-**hear/read Arabic → recognize words and phrases → connect them to meaning → review at the right time → gradually rely less on Urdu**.
+- **Understand:** vocabulary, phrases, roots, grammar discovery, listening and spaced review.
+- **Read:** a complete everyday Quran reader with translation, audio, word learning and saved place.
+- **Recite:** listening and, in later validated releases, quiet live recitation/Hifz assistance.
+- **Together:** family/community Khatm Rooms with conflict-safe Para assignments and progress.
 
-## Current web app
+V2 is a preservation-first migration of the functioning V1 product into a
+versioned TypeScript monorepo with a real account boundary. V1 behavior is an
+acceptance baseline, not disposable scaffolding. The new foundation adds:
 
-The repository contains a deployable static PWA with no server secrets and no build step required.
+- a Next.js web application;
+- a Fastify API;
+- PostgreSQL-backed users, sessions, reading positions, preferences and source metadata;
+- Argon2id passwords, email verification/reset OTPs, short-lived access JWTs
+  and rotating opaque refresh tokens;
+- shared Zod contracts and Prisma persistence;
+- an immutable, provenance-first Quran content model and release validator;
+- a responsive light-first UI designed from the smallest viewport upward.
 
-- Full 114-surah reader through a runtime Quran API
-- Multiple named Urdu translation editions
-- Real-Qari recitation streaming
-- Tap-to-inspect learner vocabulary
-- Adaptive spaced repetition and review queue
-- Listening-comprehension quizzes
-- Root and word explorer
-- Quran search using the active edition
-- Salah comprehension mode
-- Source-grounded deterministic tutor
-- Local-first progress, streaks and listening statistics
-- Export/import of learning progress
-- Offline application shell and cached previously loaded Quran JSON
-- Source/licensing registry and scholarly governance model
-- Responsive desktop sidebar and mobile bottom navigation
+The source snapshot under `legacy/v1-static/` remains as migration evidence.
+Its working learning, listening, Explore, Salah, tutor, progress and data-control
+flows must remain available while they are ported. Its small learner pack is
+labelled as prototype teaching content and is never promoted silently into a
+full reviewed Quran morphology dataset.
 
-## Run locally
+## Product status
 
-This project intentionally uses browser-native JavaScript modules so a clean checkout can run without installing a dependency tree.
+| Capability | Current status |
+|---|---|
+| 114-Surah reader, named translation and recitation audio | Live runtime provider path |
+| Accounts, email verification/reset, secure sessions and reading-place sync | Implemented foundation |
+| Daily learner pack, SRS review and phrase practice | Live local-compatible migration |
+| Listening comprehension, Explore, Salah and deterministic grounded tutor | Live local-compatible migration |
+| Offline shell, opened Quran response cache, local progress import/export | Live device-compatible migration |
+| Full word-by-word reviewed Quran dataset and 15-line Indo-Pak Mushaf | Planned content release |
+| Khatm Rooms, invitations and conflict-safe Para states | Implemented beta; production PostgreSQL race rehearsal remains a release gate |
+| Realtime Khatm push, recurrence and reminders | Planned collaboration release |
+| Microphone alignment, live correction, Hifz assist and Tajweed feedback | Not implemented; benchmark/evidence work required |
+| Source-grounded external LLM tutor | Not implemented; deterministic tutor remains the safe live mode |
 
-```bash
-python3 -m http.server 4173
-# open http://localhost:4173
-```
+The interface must never label a planned capability as complete.
 
-Or use any static file server.
-
-## Architecture
+## Repository map
 
 ```text
-index.html
-├── src/app.js       UI, routing, screens and interaction
-├── src/api.js       Quran provider adapter + source-bound caching
-├── src/core.js      Arabic normalization, SRS, progress, import/export
-├── src/data.js      reviewed learner lexicon + source registry
-└── src/styles.css   responsive visual system
+apps/
+├── web/                 Next.js application (port 3000)
+└── api/                 Fastify API (port 4000)
 
-sw.js                offline app-shell service worker
-manifest.webmanifest installable PWA metadata
-docs/                 content, learning and scholarly governance
+packages/
+├── contracts/           shared Zod schemas and API types
+├── database/            Prisma schema, migrations and repositories
+├── domain/              deterministic learning rules
+├── quran-content/       immutable content/source contracts
+├── quran-provider/      runtime-provider adapter boundary
+├── design-tokens/       shared visual tokens
+└── storage/             object-storage interface
+
+tools/
+├── content-pipeline/    provenance and exact-content validation
+└── legacy-import/       explicit, validated V1 import tooling
+
+docs/
+├── PRODUCT_PLAN.md      four pillars, capability truth and delivery phases
+├── ARCHITECTURE.md      system boundaries and request/data flows
+├── STACK.md             exact active pins and deferred technology
+├── UX.md                mobile-first, wide-screen UX contract
+├── MIGRATION_V1.md      preservation-first V1 migration policy
+├── RELEASE_GATES.md     production go/no-go requirements
+├── CONTENT_SOURCES.md   content provenance and licensing rules
+├── LEARNING_MODEL.md    learning-state semantics
+└── SCHOLARLY_GOVERNANCE.md
+
+infra/
+├── compose.yaml         local/production-like service topology
+└── docker/              web and API container definitions
+
+legacy/v1-static/        preserved V1 acceptance/reference implementation
 ```
 
-The runtime Quran provider is isolated behind `src/api.js`. A later native/mobile client can reuse the data contracts and learning rules without inheriting the web UI.
+## Product and religious-content boundaries
 
-## Sacred-content boundaries
+Quran Feham is a learning product, not an autonomous mufti or a source of
+uncited tafsir.
 
-Quran Feham treats content authority as a data-model concern, not a prompt instruction:
+- Quran text and established translations are never generated by an LLM.
+- A production canonical release must be imported immutably and verified by
+  source identity and checksum. The current reader adapter is clearly labelled
+  runtime/unreviewed; no canonical V2 content release is bundled yet.
+- Translation, morphology, roots, tafsir and school-specific notes remain
+  separate, attributed layers.
+- Teaching explanations cannot masquerade as Quran, translation or tafsir.
+- Exact Quran lookup, morphology and source retrieval remain deterministic.
+- The deterministic source-grounded tutor is live. External AI tutoring and
+  recitation scoring remain disabled until their separate evidence and release
+  gates are satisfied.
 
-1. **Canonical Quran** — immutable source text.
-2. **Established translation** — named edition/provider.
-3. **Approved tafsir** — explicit source, permission and review required.
-4. **School-specific scholarly note** — e.g. Hanafi fiqh, separately labelled and reviewed.
-5. **Teaching explanation** — simplified learning layer.
-6. **Analogy/personalization** — lowest authority.
+See [Content Sources](docs/CONTENT_SOURCES.md) and
+[Scholarly Governance](docs/SCHOLARLY_GOVERNANCE.md).
 
-**Quran text and established translation are never AI-generated.**
+## Prerequisites
 
-There is no separate “Hanafi Quran.” Hanafi relevance belongs in a separately sourced scholarly/fiqh layer.
+- Node.js `24.21.0` LTS
+- pnpm `12.5.1`
+- Docker Engine/Compose when running PostgreSQL or the container topology
 
-## Data approach
+Do not substitute Node 26 Current for the pinned LTS runtime. Corepack can use
+the repository's `packageManager` field:
 
-The web app currently uses Al Quran Cloud / Islamic Network as a runtime provider for Arabic text, selected Urdu translations and recitation URLs. Recitation files are streamed rather than bundled.
+```bash
+corepack enable
+pnpm install
+```
 
-The repository deliberately does **not** copy unclear-rights QuranWBW/QUL/private-CDN datasets into the app. Candidate morphology and translation sources are documented in `docs/CONTENT_SOURCES.md` and must pass per-resource provenance checks before bundling.
+## Local development
 
-The learner word glosses in `src/data.js` are short teaching aids, not an authoritative verse translation or tafsir. The UI labels that distinction.
+Create local environment values, then start PostgreSQL and the applications:
 
-## GitHub Pages
+```bash
+cp .env.example .env
+docker compose -f infra/compose.yaml --profile mail up -d postgres mailpit
+pnpm db:generate
+pnpm db:migrate
+pnpm dev
+```
 
-The included workflow deploys the repository as a static site from `main` using GitHub Pages actions. In repository settings, set **Pages → Source → GitHub Actions** if it is not already enabled.
+Open `http://localhost:3000`. The browser uses the same-origin `/api/v1`
+boundary; the API listens internally on port `4000`.
 
-## Roadmap to mobile
+Optional infrastructure is opt-in:
 
-Web is the validation layer. A native/mobile version should follow after the learning loop is proven.
+```bash
+# Reserved for jobs/rate coordination when the application actually uses it
+docker compose -f infra/compose.yaml --profile optional up -d redis
+```
 
-- Replace localStorage with synced accounts while preserving offline-first behavior.
-- Add a reviewed/licensed whole-Quran Urdu word-by-word data pack.
-- Add attributed QuranMorph lemma/POS import as an optional build artifact.
-- Add scholar-reviewed Urdu teaching explanations and a licensed Hanafi notes layer.
-- Add server-grounded AI tutor constrained to approved sources.
-- Add word/ayah audio timing and live listening recognition only after audio rights and accuracy are validated.
-- Reuse the learning engine in React Native / native clients.
+Mailpit is a local inbox, not the production mail solution. The V2 API keeps
+email behind an injected adapter; production requires configured SMTP delivery
+and verifies the transport during startup.
 
-## Code license
+To run the containerized web/API pair behind Traefik with the local mail inbox:
 
-Application code in this repository is MIT licensed. **That license does not re-license Quran text, translations, recitations, fonts, morphology datasets or any external content.** External resources retain their own licenses and attribution requirements.
+```bash
+docker compose -f infra/compose.yaml --profile mail --profile app up --build
+```
+
+## Verification
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Passing these commands is necessary but does not establish production
+readiness. A release must also pass the content, authentication, accessibility,
+mobile, recovery and live-deployment checks in
+[Release Gates](docs/RELEASE_GATES.md).
+
+## What is intentionally deferred
+
+The core V2 runtime does **not** require Redis/BullMQ, Socket.IO, Qdrant,
+LangChain/LangGraph, a Python ML service, or Expo. Those are expansion paths,
+not architectural defaults:
+
+- Redis/BullMQ: introduce only with a durable outbox and measured queue need.
+- Socket.IO: introduce only for a proven realtime use case.
+- Qdrant/LLMs: introduce only for an approved, citation-preserving tutor.
+- Python/recitation engine: introduce after Quran ASR and alignment benchmarking.
+- Expo mobile: begin after the web learning loop and API contracts are stable.
+
+See [Stack](docs/STACK.md) for the exact active/deferred matrix.
+
+## License
+
+Application code is MIT licensed. That license does not re-license Quran text,
+translations, recitations, fonts, morphology datasets, tafsir or other external
+content. Every content resource retains its own licence and attribution terms.

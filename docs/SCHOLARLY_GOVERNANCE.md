@@ -35,11 +35,14 @@ Before a public AI tutor is allowed to answer interpretively, create stricter re
 - Islamic finance rulings
 - sectarian disagreement
 
-The current static web tutor deliberately refuses to manufacture these answers when an approved scholarly source is not configured.
+The archived static tutor attempted a limited keyword refusal, but it did not
+fully implement this list and is not governance evidence. V2 must route these
+categories through a tested policy layer and fail closed when an approved,
+citable source/reviewer path is unavailable.
 
 ## Review object
 
-Future reviewed explanations should have:
+Every published reviewed explanation must have:
 
 ```text
 explanation_id

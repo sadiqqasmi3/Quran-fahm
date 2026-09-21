@@ -1,0 +1,11 @@
+{
+  "name": "quran-feham",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Quran comprehension learning web app for Urdu-speaking Muslims.",
+  "scripts": {
+    "test": "node tests/smoke.mjs",
+    "serve": "python3 -m http.server 4173"
+  }
+}

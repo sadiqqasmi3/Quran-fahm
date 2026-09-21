@@ -1,0 +1,35 @@
+{
+  "name": "@quran-feham/web",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run src"
+  },
+  "dependencies": {
+    "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
+    "@fontsource-variable/noto-naskh-arabic": "5.3.0",
+    "@fontsource/amiri-quran": "5.3.0",
+    "@fontsource/noto-nastaliq-urdu": "5.3.0",
+    "@quran-feham/contracts": "workspace:*",
+    "@quran-feham/design-tokens": "workspace:*",
+    "@quran-feham/quran-content": "workspace:*",
+    "lucide-react": "1.47.0",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

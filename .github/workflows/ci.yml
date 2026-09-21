@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_DB: quran_feham_test
+          POSTGRES_USER: quran_feham
+          POSTGRES_PASSWORD: quran-feham-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quran_feham -d quran_feham_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://quran_feham:quran-feham-ci-only@127.0.0.1:5432/quran_feham_test
+      JWT_SECRET: ci-jwt-secret-at-least-thirty-two-characters
+      REFRESH_TOKEN_PEPPER: ci-refresh-pepper-at-least-thirty-two-characters
+      OTP_PEPPER: ci-otp-pepper-at-least-thirty-two-characters
+      EXPOSE_DEVELOPMENT_CODES: "false"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.5.1
+          run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate database client
+        run: pnpm db:generate
+
+      - name: Apply database migrations
+        run: pnpm db:migrate:deploy
+
+      - name: Check formatting and static rules
+        run: pnpm exec biome check .
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

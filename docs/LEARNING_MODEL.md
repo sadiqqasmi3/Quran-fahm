@@ -12,22 +12,32 @@ A learner can know the same word at different strengths:
 4. **Audio recognition** — understands it when heard without seeing the Arabic.
 5. **Stable/mastered** — succeeds after increasing review intervals and across contexts.
 
-The web MVP stores a unified `strength` score plus review history and listening performance. A later server model should split visual/audio/context scores explicitly.
+The archived V1 prototype stored a unified `strength` score plus review history
+and listening counters. V2 does not accept that value as a universal mastery
+measure: visual, meaning, phrase/context and audio evidence are separate events
+and derived states.
 
 ## Review scheduler
 
-The current scheduler is intentionally transparent:
+The intended V2 scheduler remains transparent:
 
 - **Again**: review again after about 10 minutes; strength decreases.
 - **Hard**: short interval.
 - **Good**: interval expands substantially.
 - **Easy**: interval expands aggressively.
 
-It is inspired by spaced-repetition principles but is not branded as a particular FSRS implementation. When enough real learning telemetry exists, replace the heuristic with a calibrated scheduler.
+It is inspired by spaced-repetition principles but is not branded as a particular
+FSRS implementation. New cards must not starve failed or overdue material, and
+the scheduler requires boundary tests before release. When enough consented,
+representative learning evidence exists, calibration may replace the initial
+heuristic through a versioned migration.
 
 ## Comprehension estimate
 
-The percentage on the Learn dashboard is explicitly a **learning estimate across the reviewed lexicon**, not “percentage of Quran understood.” It should never be marketed as an academically precise comprehension score.
+Any percentage on the Learn dashboard is explicitly a **learning estimate across
+the identified reviewed set and mastery dimension**, not “percentage of Quran
+understood.” It must expose its denominator, remain within its valid range and
+never be marketed as an academically precise comprehension score.
 
 A future whole-Quran estimate should weight:
 

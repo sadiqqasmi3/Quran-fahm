@@ -1,11 +1,28 @@
 {
   "name": "quran-feham",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "type": "module",
-  "description": "Quran comprehension learning web app for Urdu-speaking Muslims.",
+  "packageManager": "pnpm@12.5.1",
+  "engines": {
+    "node": "24.21.0"
+  },
   "scripts": {
-    "test": "node tests/smoke.mjs",
-    "serve": "python3 -m http.server 4173"
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "dev:web": "pnpm --filter @quran-feham/web dev",
+    "dev:api": "pnpm --filter @quran-feham/api dev",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "check": "biome check . && turbo run typecheck test",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @quran-feham/database generate",
+    "db:migrate": "pnpm --filter @quran-feham/database migrate",
+    "db:migrate:deploy": "pnpm --filter @quran-feham/database migrate:deploy"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "turbo": "2.11.2",
+    "typescript": "7.0.2"
   }
 }

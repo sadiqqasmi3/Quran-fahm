@@ -1,0 +1,169 @@
+@import "tailwindcss";
+@import "@quran-feham/design-tokens/tokens.css";
+
+@theme inline {
+  --color-canvas: var(--qf-canvas);
+  --color-surface: var(--qf-surface);
+  --color-surface-soft: var(--qf-surface-soft);
+  --color-ink: var(--qf-ink);
+  --color-muted: var(--qf-muted);
+  --color-line: var(--qf-line);
+  --color-accent: var(--qf-accent);
+  --color-accent-hover: var(--qf-accent-hover);
+  --color-accent-soft: var(--qf-accent-soft);
+  --color-action: var(--qf-action);
+  --color-action-hover: var(--qf-action-hover);
+  --color-on-action: var(--qf-on-action);
+  --color-hero: var(--qf-hero);
+  --color-on-hero: var(--qf-on-hero);
+  --color-source: var(--qf-source);
+  --color-warning: var(--qf-warning);
+  --color-danger: var(--qf-danger);
+  --color-focus: var(--qf-focus);
+  --font-ui: "Atkinson Hyperlegible Next Variable", system-ui, sans-serif;
+  --font-quran: "Amiri Quran", "Noto Naskh Arabic Variable", serif;
+  --font-urdu: "Noto Nastaliq Urdu", "Noto Naskh Arabic Variable", serif;
+}
+
+:root {
+  --qf-control-line: #7c8a82;
+}
+
+:root[data-theme="dark"] {
+  --qf-control-line: #69776f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--qf-canvas);
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--qf-canvas);
+  color: var(--qf-ink);
+  font-family: "Atkinson Hyperlegible Next Variable", system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+:where(input, select, textarea) {
+  border-color: var(--qf-control-line);
+}
+
+:where(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--qf-danger);
+}
+
+:where(button, a, label).border-line {
+  border-color: var(--qf-control-line);
+}
+
+:where(button, a, label).border-line:not(:disabled):hover {
+  border-color: var(--qf-accent);
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid var(--qf-focus);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: var(--qf-accent-soft);
+  color: var(--qf-ink);
+}
+
+.font-quran {
+  font-family: "Amiri Quran", "Noto Naskh Arabic Variable", serif;
+}
+
+.font-urdu {
+  font-family: "Noto Nastaliq Urdu", "Noto Naskh Arabic Variable", serif;
+}
+
+.reader-grid {
+  display: grid;
+  min-height: calc(100dvh - 4rem);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.reading-measure {
+  width: min(100%, 52rem);
+  margin-inline: auto;
+}
+
+dialog.study-sheet {
+  inset: auto 0 0;
+  width: 100%;
+  max-width: none;
+  max-height: min(82dvh, 44rem);
+  margin: 0;
+  overflow-y: auto;
+  border-radius: 1.5rem 1.5rem 0 0;
+}
+
+.soft-grid {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--qf-line) 35%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--qf-line) 35%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 40px 40px;
+}
+
+@media (min-width: 1024px) {
+  .reader-grid {
+    grid-template-columns: minmax(13rem, 18rem) minmax(30rem, 1fr) minmax(18rem, 22.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+  }
+}
+
+@media print {
+  [data-no-print] {
+    display: none;
+  }
+
+  body {
+    background: white;
+  }
+}

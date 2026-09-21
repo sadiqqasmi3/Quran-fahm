@@ -1,0 +1,149 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: quran-feham-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-quran_feham}
+      POSTGRES_USER: ${POSTGRES_USER:-quran_feham}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - quran_feham_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - backend
+
+  migrate:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    image: quran-feham-api:latest
+    container_name: quran-feham-migrate
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-quran_feham}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quran_feham}
+    command: ["pnpm", "db:migrate:deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  api:
+    image: quran-feham-api:latest
+    container_name: quran-feham-api
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=4000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-quran_feham}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quran_feham}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=quran-feham-api
+      - JWT_AUDIENCE=quran-feham-web
+      - REFRESH_TOKEN_PEPPER=${REFRESH_TOKEN_PEPPER}
+      - OTP_PEPPER=${OTP_PEPPER}
+      - ALLOWED_ORIGINS=https://fehmequran.org,http://fehmequran.org
+      - APP_ORIGIN=${APP_ORIGIN:-https://fehmequran.org}
+      - NEXT_PUBLIC_APP_ORIGIN=${NEXT_PUBLIC_APP_ORIGIN:-https://fehmequran.org}
+      - SECURE_COOKIES=true
+      - REQUIRE_ORIGIN=true
+      - EXPOSE_DEVELOPMENT_CODES=false
+      - GENERIC_AUTH_RESPONSE_MS=750
+      - TRUST_PROXY=linklocal,uniquelocal,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+      - SMTP_HOST=${SMTP_HOST:-smtp-pulse.com}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_SECURE=${SMTP_SECURE:-true}
+      - SMTP_USER=${SMTP_USER:-sadiq.qasmi3@gmail.com}
+      - SMTP_PASS=${SMTP_PASS:-3ZoXkX8spG9}
+      - SENDPULSE_SMTP_KEY=${SENDPULSE_SMTP_KEY:-3ZoXkX8spG9}
+      - SMTP_FROM=${SMTP_FROM:-"Fehme Quran" <noreply@fehmequran.org>}
+      - AUTH_EMAIL_FROM=${AUTH_EMAIL_FROM:-"Fehme Quran" <noreply@fehmequran.org>}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.quran-feham-api.rule=Host(`fehmequran.org`) && (PathPrefix(`/api/v1`) || Path(`/health`) || Path(`/ready`))"
+      - "traefik.http.routers.quran-feham-api.entrypoints=websecure"
+      - "traefik.http.routers.quran-feham-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.quran-feham-api.priority=100"
+      - "traefik.http.services.quran-feham-api.loadbalancer.server.port=4000"
+    networks:
+      - backend
+      - proxy
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        - QURAN_FEHAM_API_ORIGIN=http://api:4000
+        - NEXT_PUBLIC_APP_ORIGIN=${NEXT_PUBLIC_APP_ORIGIN:-https://fehmequran.org}
+    image: quran-feham-web:latest
+    container_name: quran-feham-web
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - QURAN_FEHAM_API_ORIGIN=http://api:4000
+      - NEXT_PUBLIC_APP_ORIGIN=${NEXT_PUBLIC_APP_ORIGIN:-https://fehmequran.org}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.quran-feham-web.rule=Host(`fehmequran.org`)"
+      - "traefik.http.routers.quran-feham-web.entrypoints=websecure"
+      - "traefik.http.routers.quran-feham-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.quran-feham-web.priority=10"
+      - "traefik.http.services.quran-feham-web.loadbalancer.server.port=3000"
+    networks:
+      - backend
+      - proxy
+
+networks:
+  proxy:
+    external: true
+  backend:
+    driver: bridge
+
+volumes:
+  quran_feham_pgdata:
+    name: quran_feham_pgdata

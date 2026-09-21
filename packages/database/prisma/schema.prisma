@@ -1,0 +1,404 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  LEARNER
+  REVIEWER
+  ADMIN
+}
+
+enum Locale {
+  en
+  ur
+}
+
+enum OtpPurpose {
+  VERIFY_EMAIL
+  PASSWORD_RESET
+  SIGN_IN
+}
+
+enum ThemePreference {
+  SYSTEM
+  LIGHT
+  DARK
+}
+
+enum ContentReleaseStatus {
+  IMPORTED
+  REVIEWED
+  ACTIVE
+  RETIRED
+}
+
+enum KhatmRoomMemberRole {
+  OWNER
+  MEMBER
+}
+
+enum KhatmCampaignStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum KhatmParaStatus {
+  AVAILABLE
+  CLAIMED
+  READING
+  COMPLETED
+}
+
+enum KhatmRecurrence {
+  NONE
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  THREE_DAYS
+}
+
+enum KhatmReminderCadence {
+  NONE
+  DAILY
+  DEADLINE_3_DAYS
+  DEADLINE_1_DAY
+}
+
+enum KhatmReminderStatus {
+  PENDING
+  SENT
+  CANCELLED
+  FAILED
+}
+
+enum KhatmActivityType {
+  ROOM_CREATED
+  ROOM_UPDATED
+  MEMBER_JOINED
+  MEMBER_REMOVED
+  INVITE_ROTATED
+  PARA_CLAIMED
+  PARA_READING
+  PARA_COMPLETED
+  PARA_RELEASED
+  PARA_REASSIGNED
+  COMPLETION_REOPENED
+  CAMPAIGN_STARTED
+  CAMPAIGN_COMPLETED
+  CAMPAIGN_CANCELLED
+  REMINDER_SCHEDULED
+  REMINDER_CANCELLED
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique @db.VarChar(254)
+  passwordHash    String?   @map("password_hash") @db.Text
+  displayName     String?   @map("display_name") @db.VarChar(80)
+  locale          Locale    @default(ur)
+  role            UserRole  @default(LEARNER)
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions          Session[]
+  otpChallenges     OtpChallenge[]
+  preferences       UserPreference?
+  readingPositions  ReadingPosition[]
+  bookmarks         Bookmark[]
+  learningEvents    LearningEvent[]
+  ownedKhatmRooms   KhatmRoom[]       @relation("KhatmRoomOwner")
+  khatmMemberships  KhatmRoomMember[]
+  claimedKhatmSlots KhatmParaSlot[]   @relation("KhatmSlotClaimant")
+  assignedKhatmSlots KhatmParaSlot[]  @relation("KhatmSlotAssigner")
+  createdKhatmReminders KhatmReminder[] @relation("KhatmReminderCreator")
+  khatmActivities     KhatmActivity[]   @relation("KhatmActivityActor")
+
+  @@map("users")
+}
+
+model Session {
+  id                       String    @id @default(uuid()) @db.Uuid
+  userId                   String    @map("user_id") @db.Uuid
+  tokenFamilyId            String    @map("token_family_id") @db.Uuid
+  refreshTokenHash         String    @unique @map("refresh_token_hash") @db.Char(64)
+  previousRefreshTokenHash String?   @unique @map("previous_refresh_token_hash") @db.Char(64)
+  rotatedAt                DateTime? @map("rotated_at") @db.Timestamptz(3)
+  deviceName               String    @map("device_name") @db.VarChar(120)
+  userAgent                String?   @map("user_agent") @db.VarChar(512)
+  ipAddress                String?   @map("ip_address") @db.Inet
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt               DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(3)
+  expiresAt                DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt                DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  user                 User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rotatedRefreshTokens RefreshTokenTombstone[]
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model RefreshTokenTombstone {
+  tokenHash     String   @id @map("token_hash") @db.Char(64)
+  sessionId     String   @map("session_id") @db.Uuid
+  tokenFamilyId String   @map("token_family_id") @db.Uuid
+  expiresAt     DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([tokenFamilyId])
+  @@index([expiresAt])
+  @@map("refresh_token_tombstones")
+}
+
+model OtpChallenge {
+  id         String     @id @default(uuid()) @db.Uuid
+  userId     String?    @map("user_id") @db.Uuid
+  email      String     @db.VarChar(254)
+  purpose    OtpPurpose
+  codeHash   String     @map("code_hash") @db.Char(64)
+  attempts   Int        @default(0)
+  expiresAt  DateTime   @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime?  @map("consumed_at") @db.Timestamptz(3)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, purpose, createdAt(sort: Desc)])
+  @@index([expiresAt])
+  @@map("otp_challenges")
+}
+
+model UserPreference {
+  userId                String          @id @map("user_id") @db.Uuid
+  interfaceLocale       Locale          @default(ur) @map("interface_locale")
+  translationEditionId  String          @default("ur.jalandhry") @map("translation_edition_id") @db.VarChar(120)
+  recitationEditionId   String          @default("ar.alafasy") @map("recitation_edition_id") @db.VarChar(120)
+  quranScript           String          @default("uthmani") @map("quran_script") @db.VarChar(40)
+  theme                 ThemePreference @default(LIGHT)
+  arabicScale           Float           @default(1) @map("arabic_scale")
+  dailyGoalMinutes      Int             @default(10) @map("daily_goal_minutes")
+  learningGoal          String?         @map("learning_goal") @db.VarChar(80)
+  remindersEnabled      Boolean         @default(false) @map("reminders_enabled")
+  onboardingCompletedAt DateTime?       @map("onboarding_completed_at") @db.Timestamptz(3)
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model ReadingPosition {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  surahNumber Int      @map("surah_number") @db.SmallInt
+  ayahNumber  Int      @map("ayah_number")
+  mode        String   @default("read") @db.VarChar(20)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, surahNumber])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("reading_positions")
+}
+
+model Bookmark {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  surahNumber Int      @map("surah_number") @db.SmallInt
+  ayahNumber  Int      @map("ayah_number")
+  note        String?  @db.VarChar(1000)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, surahNumber, ayahNumber])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("bookmarks")
+}
+
+// Learning events are append-only. The repository intentionally exposes no update
+// or delete operation; production migrations add a database trigger as defense in depth.
+model LearningEvent {
+  id               String   @id @default(uuid()) @db.Uuid
+  idempotencyKey   String   @unique @map("idempotency_key") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  eventType        String   @map("event_type") @db.VarChar(60)
+  learningItemId   String   @map("learning_item_id") @db.VarChar(180)
+  masteryDimension String?  @map("mastery_dimension") @db.VarChar(30)
+  rating           String?  @db.VarChar(30)
+  payload          Json     @default("{}")
+  occurredAt       DateTime @map("occurred_at") @db.Timestamptz(3)
+  recordedAt       DateTime @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  contentReleaseId String   @map("content_release_id") @db.VarChar(120)
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentRelease ContentRelease @relation(fields: [contentReleaseId], references: [id], onDelete: Restrict)
+
+  @@index([userId, occurredAt(sort: Desc)])
+  @@index([contentReleaseId])
+  @@map("learning_events")
+}
+
+// A release record is immutable provenance. Activation/retirement is represented by
+// creating a new release rather than editing canonical source identity or checksums.
+model ContentRelease {
+  id              String               @id @db.VarChar(120)
+  sourceId        String               @map("source_id") @db.VarChar(120)
+  provider        String               @db.VarChar(160)
+  edition         String               @db.VarChar(160)
+  upstreamVersion String               @map("upstream_version") @db.VarChar(160)
+  upstreamCommit  String?              @map("upstream_commit") @db.VarChar(160)
+  sha256          String               @db.Char(64)
+  license         String               @db.VarChar(240)
+  retrievedAt     DateTime             @map("retrieved_at") @db.Timestamptz(3)
+  manifest        Json                 @default("{}")
+  status          ContentReleaseStatus @default(IMPORTED)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  learningEvents LearningEvent[]
+
+  @@unique([sourceId, sha256])
+  @@index([sourceId, status])
+  @@map("content_releases")
+}
+
+model KhatmRoom {
+  id                      String                @id @default(uuid()) @db.Uuid
+  name                    String                @db.VarChar(100)
+  intention               String?               @db.VarChar(300)
+  targetKhatms            Int                   @map("target_khatms") @db.SmallInt
+  startDate               DateTime?             @map("start_date") @db.Timestamptz(3)
+  deadline                DateTime?             @db.Timestamptz(3)
+  inviteCode              String                @unique @map("invite_code") @db.VarChar(64)
+  joinCode                String                @unique @map("join_code") @db.Char(8)
+  recurrence              KhatmRecurrence       @default(NONE)
+  autoRestartOnComplete   Boolean               @default(false) @map("auto_restart_on_complete")
+  maxActiveParasPerMember Int                   @default(4) @map("max_active_paras_per_member") @db.SmallInt
+  reminderCadence         KhatmReminderCadence  @default(NONE) @map("reminder_cadence")
+  ownerUserId             String                @map("owner_user_id") @db.Uuid
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  owner     User              @relation("KhatmRoomOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  members   KhatmRoomMember[]
+  campaigns KhatmCampaign[]
+  reminders KhatmReminder[]
+  activities KhatmActivity[]
+
+  @@index([ownerUserId])
+  @@map("khatm_rooms")
+}
+
+model KhatmRoomMember {
+  roomId   String              @map("room_id") @db.Uuid
+  userId   String              @map("user_id") @db.Uuid
+  role     KhatmRoomMemberRole @default(MEMBER)
+  joinedAt DateTime            @default(now()) @map("joined_at") @db.Timestamptz(3)
+
+  room KhatmRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+  @@index([userId, joinedAt(sort: Desc)])
+  @@map("khatm_room_members")
+}
+
+model KhatmCampaign {
+  id           String              @id @default(uuid()) @db.Uuid
+  roomId       String              @map("room_id") @db.Uuid
+  number       Int                 @db.SmallInt
+  status       KhatmCampaignStatus @default(ACTIVE)
+  targetKhatms Int                 @map("target_khatms") @db.SmallInt
+  startDate    DateTime?           @map("start_date") @db.Timestamptz(3)
+  deadline     DateTime?           @db.Timestamptz(3)
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  endedAt      DateTime?           @map("ended_at") @db.Timestamptz(3)
+
+  room  KhatmRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  slots KhatmParaSlot[]
+  reminders KhatmReminder[]
+  activities KhatmActivity[]
+
+  @@unique([roomId, number])
+  @@index([roomId, status])
+  @@map("khatm_campaigns")
+}
+
+model KhatmParaSlot {
+  id               String          @id @default(uuid()) @db.Uuid
+  campaignId       String          @map("campaign_id") @db.Uuid
+  khatmNumber      Int             @map("khatm_number") @db.SmallInt
+  juzNumber        Int             @map("juz_number") @db.SmallInt
+  status           KhatmParaStatus @default(AVAILABLE)
+  claimedByUserId  String?         @map("claimed_by_user_id") @db.Uuid
+  claimedAt        DateTime?       @map("claimed_at") @db.Timestamptz(3)
+  readingStartedAt DateTime?       @map("reading_started_at") @db.Timestamptz(3)
+  completedAt      DateTime?       @map("completed_at") @db.Timestamptz(3)
+  assignedByUserId String?         @map("assigned_by_user_id") @db.Uuid
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  campaign  KhatmCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  claimedBy User?         @relation("KhatmSlotClaimant", fields: [claimedByUserId], references: [id], onDelete: Restrict)
+  assignedBy User?        @relation("KhatmSlotAssigner", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  activities KhatmActivity[]
+
+  @@unique([campaignId, khatmNumber, juzNumber])
+  @@index([campaignId, status])
+  @@index([claimedByUserId, status])
+  @@index([assignedByUserId])
+  @@map("khatm_para_slots")
+}
+
+model KhatmReminder {
+  id              String               @id @default(uuid()) @db.Uuid
+  roomId          String               @map("room_id") @db.Uuid
+  campaignId      String?              @map("campaign_id") @db.Uuid
+  createdByUserId String               @map("created_by_user_id") @db.Uuid
+  scheduledFor    DateTime             @map("scheduled_for") @db.Timestamptz(3)
+  message         String               @db.VarChar(280)
+  status          KhatmReminderStatus  @default(PENDING)
+  sentAt          DateTime?            @map("sent_at") @db.Timestamptz(3)
+  cancelledAt     DateTime?            @map("cancelled_at") @db.Timestamptz(3)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  room      KhatmRoom      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  campaign  KhatmCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  createdBy User           @relation("KhatmReminderCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([roomId, scheduledFor(sort: Asc)])
+  @@index([status, scheduledFor(sort: Asc)])
+  @@map("khatm_reminders")
+}
+
+model KhatmActivity {
+  id            String            @id @default(uuid()) @db.Uuid
+  roomId        String            @map("room_id") @db.Uuid
+  campaignId    String?           @map("campaign_id") @db.Uuid
+  slotId        String?           @map("slot_id") @db.Uuid
+  actorUserId   String?           @map("actor_user_id") @db.Uuid
+  targetUserId  String?           @map("target_user_id") @db.Uuid
+  type          KhatmActivityType
+  khatmNumber   Int?              @map("khatm_number") @db.SmallInt
+  juzNumber     Int?              @map("juz_number") @db.SmallInt
+  occurredAt    DateTime          @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  room      KhatmRoom      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  campaign  KhatmCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  slot      KhatmParaSlot? @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  actor     User?          @relation("KhatmActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([roomId, occurredAt(sort: Desc)])
+  @@index([campaignId, occurredAt(sort: Desc)])
+  @@map("khatm_activities")
+}
