@@ -5,6 +5,7 @@ import {
   CircleUserRound,
   Compass,
   Download,
+  HelpCircle,
   Mosque,
   TrendingUp,
 } from "lucide-react";
@@ -14,6 +15,7 @@ import Link from "next/link";
 export const metadata: Metadata = { title: "More Quran tools" };
 
 const tools = [
+  ["/guide", "App Guide · رہنمائی", "پورٹل استعمال کرنے کا آسان طریقہ اور ضروری سوالات کے جوابات۔", HelpCircle],
   ["/learn", "Learn", "Daily vocabulary, phrases, roots, listening, and review.", BookMarked],
   ["/explore", "Explore", "Search Quran words, roots, and provider content.", Compass],
   ["/salah", "Salah", "Understand Al-Fatihah and familiar recitation.", Mosque],

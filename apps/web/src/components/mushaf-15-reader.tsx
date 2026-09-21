@@ -12,6 +12,7 @@ import {
   Download,
   ExternalLink,
   Eye,
+  HelpCircle,
   Maximize2,
   Minimize2,
   Moon,
@@ -143,6 +144,8 @@ export function Mushaf15Reader({
   const [completing, setCompleting] = useState(false);
   const [paraSelectorOpen, setParaSelectorOpen] = useState(false);
   const [pageJumpOpen, setPageJumpOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpLang, setHelpLang] = useState<"ur" | "en">("ur");
   const [targetPageInput, setTargetPageInput] = useState(String(currentPage));
 
   // Touch & wheel handling
@@ -654,6 +657,16 @@ export function Mushaf15Reader({
             >
               {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
+
+            {/* Quick Help Guide Button */}
+            <button
+              type="button"
+              onClick={() => setHelpOpen(true)}
+              title="طریقہ استعمال و رہنمائی / Quick Help Guide"
+              className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition"
+            >
+              <HelpCircle size={16} />
+            </button>
           </div>
         </div>
       </header>
@@ -947,6 +960,192 @@ export function Mushaf15Reader({
               <p>
                 Current: Page {currentPage} of 611 · Para {currentPara.number}
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BILINGUAL QUICK HELP GUIDE MODAL ── */}
+      {helpOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
+          role="dialog"
+          aria-labelledby="reader-help-title"
+        >
+          <div
+            dir={helpLang === "ur" ? "rtl" : "ltr"}
+            className={`w-full max-w-lg rounded-3xl border border-white/20 bg-[#141d18] p-6 text-white shadow-2xl max-h-[85vh] overflow-y-auto ${
+              helpLang === "ur" ? "font-urdu text-right" : "text-left"
+            }`}
+          >
+            {/* Header with Close & Language Switcher */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div>
+                <h3 id="reader-help-title" className="text-lg font-bold text-emerald-300">
+                  {helpLang === "ur" ? "مصحف استعمال کرنے کا طریقہ" : "Mushaf Reader Quick Guide"}
+                </h3>
+                <p className="text-xs text-white/60 mt-0.5">
+                  {helpLang === "ur" ? "آسان ورق گردانی اور تمام سہولیات" : "Gesture, scroll, and navigation tips"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-xl bg-white/10 p-0.5 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setHelpLang("ur")}
+                    className={`px-2.5 py-1 rounded-lg transition ${
+                      helpLang === "ur" ? "bg-emerald-600 text-white" : "text-white/60 hover:text-white"
+                    }`}
+                  >
+                    اردو
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHelpLang("en")}
+                    className={`px-2.5 py-1 rounded-lg transition ${
+                      helpLang === "en" ? "bg-emerald-600 text-white" : "text-white/60 hover:text-white"
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHelpOpen(false)}
+                  className="grid size-8 place-items-center rounded-xl bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+                  aria-label="Close guide modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Tips Body */}
+            <div className="mt-4 space-y-3.5 text-xs sm:text-sm">
+              {helpLang === "ur" ? (
+                <>
+                  <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
+                    <span className="text-xl">👆</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">موبائل پر ورق پلٹنا (Touch Swipe)</h4>
+                      <p className="text-white/70 text-xs mt-1">
+                        فون پر دائیں یا بائیں انگلی سے سوائپ کریں، یا اسکرین کے کناروں پر بنے تیر کے نشانات کو چھوئیں۔
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
+                    <span className="text-xl">🖱️</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">ماؤس اسکرول وہیل (Natural Scroll)</h4>
+                      <p className="text-white/70 text-xs mt-1">
+                        ماؤس کا پہیہ نیچے گھمانے سے اگلا صفحہ اور اوپر گھمانے سے پچھلا صفحہ کھلے گا۔
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
+                    <span className="text-xl">🔄</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">پڑھنے کا رخ (Quran RTL / Digital LTR)</h4>
+                      <p className="text-white/70 text-xs mt-1">
+                        اوپر موجود ڈائریکشن بٹن سے روایتی قرآنی انداز (پہلا صفحہ دائیں طرف) یا ڈیجیٹل انداز منتخب کریں۔
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
+                    <span className="text-xl">🌙</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">آنکھوں کی راحت اور نائٹ موڈ</h4>
+                      <p className="text-white/70 text-xs mt-1">
+                        اوپر چاند کے نشان پر کلک کر کے اسکرین کو سیاہ (Night Theme) کر لیں تاکہ رات کو تلاوت پرسکون رہے۔
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
+                    <span className="text-xl">💾</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">خودکار محفوظ</h4>
+                      <p className="text-white/70 text-xs mt-1">
+                        آپ کا آخری پڑھا ہوا صفحہ اور پارہ خودکار محفوظ ہو جاتا ہے، اگلی بار وہیں سے تلاوت شروع ہوگی۔
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
+                    <span className="text-xl">👆</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Swipe or Tap to Turn Pages</h4>
+                      <p className="text-white/70 text-xs mt-1">
+                        Swipe left or right across the screen on mobile, or tap the side navigation arrows.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
+                    <span className="text-xl">🖱️</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Natural Mouse Wheel</h4>
+                      <p className="text-white/70 text-xs mt-1">
+                        Scroll wheel down advances to the next page; scroll wheel up returns to the previous page.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
+                    <span className="text-xl">🔄</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Reading Direction (Quran RTL / LTR)</h4>
+                      <p className="text-white/70 text-xs mt-1">
+                        Toggle between traditional Quran flow (Page 1 on the right) and standard digital left-to-right flow.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
+                    <span className="text-xl">🌙</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Themes for Eye Comfort</h4>
+                      <p className="text-white/70 text-xs mt-1">
+                        Select Parchment, Sepia, or Night Mode from the top bar for glare-free reading in low light.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 rounded-2xl bg-white/5 p-3.5 border border-white/10">
+                    <span className="text-xl">💾</span>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Automatic Position Memory</h4>
+                      <p className="text-white/70 text-xs mt-1">
+                        Your exact Para and Page are automatically remembered and restored whenever you return.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer Action to Full App Guide */}
+            <div className="mt-5 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/10 pt-4">
+              <Link
+                href="/guide"
+                target="_blank"
+                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500 transition"
+              >
+                <span>{helpLang === "ur" ? "مکمل ایپ گائیڈ دیکھیں" : "View Full App Guide"}</span>
+                <ExternalLink size={14} />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setHelpOpen(false)}
+                className="w-full sm:w-auto rounded-xl bg-white/10 px-4 py-2.5 text-xs font-semibold text-white/80 hover:bg-white/20 transition text-center"
+              >
+                {helpLang === "ur" ? "ٹھیک ہے، سمجھ گیا" : "Got it, thanks"}
+              </button>
             </div>
           </div>
         </div>

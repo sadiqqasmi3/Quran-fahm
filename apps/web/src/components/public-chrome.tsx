@@ -14,6 +14,12 @@ export function PublicHeader() {
             Read
           </Link>
           <Link
+            href="/guide"
+            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-accent hover:bg-surface-soft"
+          >
+            Guide · رہنمائی
+          </Link>
+          <Link
             href="/sources"
             className="hidden min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-ink hover:bg-surface-soft sm:inline-flex"
           >
@@ -48,6 +54,9 @@ export function PublicFooter() {
         >
           <Link className="min-h-11 content-center text-muted hover:text-ink" href="/quran">
             Quran reader
+          </Link>
+          <Link className="min-h-11 content-center text-accent hover:text-ink font-medium" href="/guide">
+            App Guide · رہنمائی
           </Link>
           <Link className="min-h-11 content-center text-muted hover:text-ink" href="/sources">
             Sources

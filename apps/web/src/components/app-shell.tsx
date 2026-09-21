@@ -9,6 +9,7 @@ import {
   CircleUserRound,
   Compass,
   Download,
+  HelpCircle,
   Home,
   LogIn,
   LogOut,
@@ -35,6 +36,7 @@ const primaryNavigation = [
 
 const secondaryNavigation = [
   { href: "/mushaf", label: "15-Line Mushaf", icon: BookOpen },
+  { href: "/guide", label: "App Guide · رہنمائی", icon: HelpCircle },
   { href: "/learn", label: "Learn", icon: BookMarked },
   { href: "/explore", label: "Explore", icon: Compass },
   { href: "/salah", label: "Salah", icon: Mosque },
