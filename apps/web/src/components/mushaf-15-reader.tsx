@@ -31,8 +31,17 @@ import {
   mushafParaPdfUrl,
 } from "@/lib/para-data";
 import { READING_HISTORY_CHANGED_EVENT, recordReadingHistory } from "@/lib/reading-history-store";
+import {
+  MUSHAF_DIRECTION_STORAGE_KEY,
+  MUSHAF_THEME_STORAGE_KEY,
+  MUSHAF_ZOOM_STORAGE_KEY,
+  resolveInitialMushafPosition,
+  saveMushafPosition,
+} from "@/lib/mushaf-storage";
 
 export type MushafTheme = "parchment" | "sepia" | "night";
+
+
 
 export interface Mushaf15ReaderProps {
   initialPara?: number | undefined;
@@ -43,31 +52,23 @@ export interface Mushaf15ReaderProps {
 }
 
 export function Mushaf15Reader({
-  initialPara = 1,
+  initialPara,
   initialPage,
   onClose,
   onCompletePara,
   isClaimedPara = false,
 }: Mushaf15ReaderProps) {
-  const [paraNumber, setParaNumber] = useState(Math.max(1, Math.min(30, initialPara)));
+  const [initialPos] = useState(() => resolveInitialMushafPosition(initialPara, initialPage));
+  const [paraNumber, setParaNumber] = useState<number>(initialPos.para);
   const currentPara = getPara(paraNumber);
 
   // Mushaf page number (2 to 611)
-  const [currentPage, setCurrentPage] = useState<number>(() => {
-    if (
-      initialPage &&
-      initialPage >= currentPara.startMushafPage &&
-      initialPage <= currentPara.endMushafPage
-    ) {
-      return initialPage;
-    }
-    return currentPara.startMushafPage;
-  });
+  const [currentPage, setCurrentPage] = useState<number>(initialPos.page);
 
   // Reading direction: "rtl" (Quran tradition, page 1 on right) or "ltr" (digital book flow)
   const [readingDirection, setReadingDirection] = useState<"rtl" | "ltr">(() => {
     if (typeof window !== "undefined") {
-      const saved = window.localStorage.getItem("qf_mushaf_direction");
+      const saved = window.localStorage.getItem(MUSHAF_DIRECTION_STORAGE_KEY);
       if (saved === "ltr" || saved === "rtl") return saved;
     }
     return "rtl";
@@ -77,14 +78,62 @@ export function Mushaf15Reader({
     setReadingDirection((prev) => {
       const next = prev === "rtl" ? "ltr" : "rtl";
       if (typeof window !== "undefined") {
-        window.localStorage.setItem("qf_mushaf_direction", next);
+        try {
+          window.localStorage.setItem(MUSHAF_DIRECTION_STORAGE_KEY, next);
+        } catch {
+          // Ignore
+        }
       }
       return next;
     });
   }, []);
 
   const [theme, setTheme] = useState<MushafTheme>("parchment");
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = window.localStorage.getItem(MUSHAF_THEME_STORAGE_KEY);
+      if (saved === "parchment" || saved === "sepia" || saved === "night") {
+        setTheme(saved);
+      }
+    }
+  }, []);
+
+  const changeTheme = useCallback((newTheme: MushafTheme) => {
+    setTheme(newTheme);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(MUSHAF_THEME_STORAGE_KEY, newTheme);
+      } catch {
+        // Ignore
+      }
+    }
+  }, []);
+
   const [zoom, setZoom] = useState<number>(1);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = window.localStorage.getItem(MUSHAF_ZOOM_STORAGE_KEY);
+      if (saved) {
+        const parsed = Number.parseFloat(saved);
+        if (!Number.isNaN(parsed) && parsed >= 0.8 && parsed <= 1.6) {
+          setZoom(parsed);
+        }
+      }
+    }
+  }, []);
+
+  const changeZoom = useCallback((newZoom: number) => {
+    const clamped = Math.max(0.8, Math.min(1.6, Number(newZoom.toFixed(1))));
+    setZoom(clamped);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(MUSHAF_ZOOM_STORAGE_KEY, String(clamped));
+      } catch {
+        // Ignore
+      }
+    }
+  }, []);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
   const [turnDirection, setTurnDirection] = useState<"next" | "prev">("next");
@@ -102,6 +151,25 @@ export function Mushaf15Reader({
   const lastWheelTime = useRef<number>(0);
   const turnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Persist current page & para in localStorage and synchronize URL query params
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      saveMushafPosition(currentPage, paraNumber);
+
+      // Synchronize URL query parameters (?para=X&page=Y) so reloads/shares resume exactly here
+      if (window.location.pathname.includes("/mushaf")) {
+        const currentUrl = new URL(window.location.href);
+        const searchPage = currentUrl.searchParams.get("page");
+        const searchPara = currentUrl.searchParams.get("para");
+        if (searchPage !== String(currentPage) || searchPara !== String(paraNumber)) {
+          currentUrl.searchParams.set("para", String(paraNumber));
+          currentUrl.searchParams.set("page", String(currentPage));
+          window.history.replaceState(null, "", currentUrl.toString());
+        }
+      }
+    }
+  }, [currentPage, paraNumber]);
 
   // Record reading history on page visit
   useEffect(() => {
@@ -517,7 +585,7 @@ export function Mushaf15Reader({
             <div className="flex items-center rounded-xl bg-white/10 p-0.5">
               <button
                 type="button"
-                onClick={() => setTheme("parchment")}
+                onClick={() => changeTheme("parchment")}
                 title="Parchment Theme"
                 className={`p-1.5 rounded-lg text-xs transition ${theme === "parchment" ? "bg-white/20 text-emerald-300" : "text-white/60 hover:text-white"}`}
               >
@@ -525,7 +593,7 @@ export function Mushaf15Reader({
               </button>
               <button
                 type="button"
-                onClick={() => setTheme("sepia")}
+                onClick={() => changeTheme("sepia")}
                 title="Warm Sepia Theme"
                 className={`p-1.5 rounded-lg text-xs transition ${theme === "sepia" ? "bg-white/20 text-amber-300" : "text-white/60 hover:text-white"}`}
               >
@@ -533,7 +601,7 @@ export function Mushaf15Reader({
               </button>
               <button
                 type="button"
-                onClick={() => setTheme("night")}
+                onClick={() => changeTheme("night")}
                 title="Night Theme"
                 className={`p-1.5 rounded-lg text-xs transition ${theme === "night" ? "bg-white/20 text-blue-300" : "text-white/60 hover:text-white"}`}
               >
@@ -545,7 +613,7 @@ export function Mushaf15Reader({
             <div className="hidden sm:flex items-center rounded-xl bg-white/10 p-0.5">
               <button
                 type="button"
-                onClick={() => setZoom((z) => Math.max(0.8, Number((z - 0.1).toFixed(1))))}
+                onClick={() => changeZoom(zoom - 0.1)}
                 title="Zoom Out"
                 disabled={zoom <= 0.8}
                 className="p-1.5 rounded-lg text-white/60 hover:text-white disabled:opacity-30 transition"
@@ -557,7 +625,7 @@ export function Mushaf15Reader({
               </span>
               <button
                 type="button"
-                onClick={() => setZoom((z) => Math.min(1.6, Number((z + 0.1).toFixed(1))))}
+                onClick={() => changeZoom(zoom + 0.1)}
                 title="Zoom In"
                 disabled={zoom >= 1.6}
                 className="p-1.5 rounded-lg text-white/60 hover:text-white disabled:opacity-30 transition"
