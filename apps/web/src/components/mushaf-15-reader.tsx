@@ -31,7 +31,6 @@ import {
   mushafParaPdfUrl,
 } from "@/lib/para-data";
 import { READING_HISTORY_CHANGED_EVENT, recordReadingHistory } from "@/lib/reading-history-store";
-import { MushafPdfCanvas } from "./mushaf-pdf-canvas";
 
 export type MushafTheme = "parchment" | "sepia" | "night";
 
@@ -101,6 +100,7 @@ export function Mushaf15Reader({
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const lastWheelTime = useRef<number>(0);
+  const turnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Record reading history on page visit
@@ -138,13 +138,15 @@ export function Mushaf15Reader({
     }
   }, [currentPara, currentPage]);
 
-  // Preload adjacent pages in memory for zero-latency turning
+  // Preload adjacent pages in browser memory for zero-latency turning
   useEffect(() => {
     const pagesToPreload = [
+      currentPage - 3,
       currentPage - 2,
       currentPage - 1,
       currentPage + 1,
       currentPage + 2,
+      currentPage + 3,
     ].filter((p) => p >= 2 && p <= 611);
 
     pagesToPreload.forEach((p) => {
@@ -168,10 +170,10 @@ export function Mushaf15Reader({
     }
   }, []);
 
-  // Smooth two-leaf 3D page turn navigation (zero shaking)
+  // Smooth two-leaf 3D page turn navigation (instant, zero wait, zero shaking)
   const goToPage = useCallback(
     (targetPage: number, direction: "next" | "prev") => {
-      if (isTurning || targetPage === currentPage) return;
+      if (targetPage === currentPage) return;
       if (targetPage < 2 || targetPage > 611) return;
 
       // Detect if crossing into another Para
@@ -182,18 +184,22 @@ export function Mushaf15Reader({
         setParaNumber(targetPara.number);
       }
 
+      if (turnTimeoutRef.current) {
+        clearTimeout(turnTimeoutRef.current);
+      }
+
       setIncomingPage(targetPage);
       setTurnDirection(direction);
       setIsTurning(true);
 
-      // Complete the page turn smoothly after 320ms transition
-      setTimeout(() => {
+      // Snappy 200ms page turn transition for instant responsiveness
+      turnTimeoutRef.current = setTimeout(() => {
         setCurrentPage(targetPage);
         setIncomingPage(null);
         setIsTurning(false);
-      }, 340);
+      }, 200);
     },
-    [isTurning, currentPage, paraNumber],
+    [currentPage, paraNumber],
   );
 
   // Next page (advances page count forward in book)
@@ -210,38 +216,37 @@ export function Mushaf15Reader({
     }
   }, [currentPage, goToPage]);
 
-  // Mouse wheel & trackpad natural scrolling
+  // Mouse wheel & trackpad natural scrolling (least wait, responsive)
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
-      if (isTurning) return;
       const now = Date.now();
-      if (now - lastWheelTime.current < 260) return;
+      if (now - lastWheelTime.current < 180) return;
 
       // Vertical scroll down -> Next page (forward)
-      if (e.deltaY > 25) {
+      if (e.deltaY > 18) {
         lastWheelTime.current = now;
         nextPage();
       }
       // Vertical scroll up -> Previous page (backward)
-      else if (e.deltaY < -25) {
+      else if (e.deltaY < -18) {
         lastWheelTime.current = now;
         prevPage();
       }
       // Horizontal trackpad scrolling
-      else if (Math.abs(e.deltaX) > 30) {
+      else if (Math.abs(e.deltaX) > 22) {
         lastWheelTime.current = now;
         if (readingDirection === "rtl") {
           // In RTL: swiping left advances forward, swiping right goes back
-          if (e.deltaX > 30) prevPage();
+          if (e.deltaX > 22) prevPage();
           else nextPage();
         } else {
           // In LTR: swiping right advances forward, swiping left goes back
-          if (e.deltaX > 30) nextPage();
+          if (e.deltaX > 22) nextPage();
           else prevPage();
         }
       }
     },
-    [isTurning, nextPage, prevPage, readingDirection],
+    [nextPage, prevPage, readingDirection],
   );
 
   // Keyboard navigation
@@ -344,6 +349,20 @@ export function Mushaf15Reader({
       : theme === "sepia"
         ? "border-[#3d3327] shadow-[0_20px_60px_rgba(0,0,0,0.65)]"
         : "border-[#1c2921] shadow-[0_20px_60px_rgba(0,0,0,0.85)]";
+
+  const bookBgColor =
+    theme === "night"
+      ? "bg-[#111613]"
+      : theme === "sepia"
+        ? "bg-[#f4ebd9]"
+        : "bg-[#fcfaf5]";
+
+  const imageFilterClass =
+    theme === "night"
+      ? "invert-[0.92] hue-rotate-180 brightness-95 contrast-125"
+      : theme === "sepia"
+        ? "sepia-[0.25] contrast-[1.03]"
+        : "";
 
   return (
     <div
@@ -611,7 +630,7 @@ export function Mushaf15Reader({
         >
           {/* 3D Book Frame */}
           <div
-            className={`relative rounded-xl sm:rounded-2xl border ${pageFrameStyle} overflow-hidden bg-[#faf8f4] shadow-2xl transition-all duration-200`}
+            className={`relative rounded-xl sm:rounded-2xl border ${pageFrameStyle} overflow-hidden ${bookBgColor} shadow-2xl transition-all duration-200`}
             style={{
               maxHeight: "calc(100dvh - 9.5rem)",
               boxShadow:
@@ -622,28 +641,31 @@ export function Mushaf15Reader({
           >
             {/* Stationary Base Layer (Destination page visible underneath during turn) */}
             {isTurning && incomingPage !== null && (
-              <div className="absolute inset-0 z-0">
-                <MushafPdfCanvas
-                  pageNumber={incomingPage}
-                  theme={theme}
-                  zoom={zoom}
-                  priority={true}
+              <div className="absolute inset-0 z-0 flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={mushafPageImageUrl(incomingPage)}
+                  alt={`Mushaf Page ${incomingPage}`}
+                  className={`block max-h-[calc(100dvh-10rem)] w-auto object-contain ${imageFilterClass}`}
+                  draggable={false}
+                  loading="eager"
+                  decoding="async"
                 />
               </div>
             )}
 
             {/* Active / Turning Leaf */}
             <div
-              className={`relative z-10 origin-center transition-all duration-300 ease-out transform-gpu will-change-transform ${
+              className={`relative z-10 origin-center transition-transform duration-200 ease-out transform-gpu will-change-transform ${
                 isTurning
                   ? turnDirection === "next"
                     ? readingDirection === "rtl"
-                      ? "-rotate-y-40 scale-[0.98] opacity-85"
-                      : "rotate-y-40 scale-[0.98] opacity-85"
+                      ? "-rotate-y-35 scale-[0.99]"
+                      : "rotate-y-35 scale-[0.99]"
                     : readingDirection === "rtl"
-                      ? "rotate-y-40 scale-[0.98] opacity-85"
-                      : "-rotate-y-40 scale-[0.98] opacity-85"
-                  : "rotate-y-0 scale-100 opacity-100"
+                      ? "rotate-y-35 scale-[0.99]"
+                      : "-rotate-y-35 scale-[0.99]"
+                  : "rotate-y-0 scale-100"
               }`}
               style={{
                 transformOrigin:
@@ -657,21 +679,24 @@ export function Mushaf15Reader({
                 transformStyle: "preserve-3d",
               }}
             >
-              <MushafPdfCanvas
-                pageNumber={currentPage}
-                theme={theme}
-                zoom={zoom}
-                priority={true}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentImageUrl}
+                alt={`15-Line Mushaf Page ${currentPage} - Para ${currentPara.number}`}
+                className={`block max-h-[calc(100dvh-10rem)] w-auto object-contain ${imageFilterClass}`}
+                draggable={false}
+                loading="eager"
+                decoding="async"
               />
 
               {/* Dynamic Turn Shadow during page turn */}
               <div
-                className={`pointer-events-none absolute inset-0 transition-opacity duration-300 ${
+                className={`pointer-events-none absolute inset-0 transition-opacity duration-200 ${
                   isTurning ? "opacity-100" : "opacity-0"
                 } ${
                   readingDirection === "rtl"
-                    ? "bg-gradient-to-l from-black/25 via-black/10 to-transparent"
-                    : "bg-gradient-to-r from-black/25 via-black/10 to-transparent"
+                    ? "bg-gradient-to-l from-black/20 via-black/5 to-transparent"
+                    : "bg-gradient-to-r from-black/20 via-black/5 to-transparent"
                 }`}
                 aria-hidden="true"
               />
