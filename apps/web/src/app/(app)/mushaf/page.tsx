@@ -11,13 +11,13 @@ function MushafView() {
   const paraParam = searchParams.get("para");
   const pageParam = searchParams.get("page");
 
-  const initialPara = paraParam ? Number.parseInt(paraParam, 10) : 1;
+  const initialPara = paraParam ? Number.parseInt(paraParam, 10) : undefined;
   const initialPage = pageParam ? Number.parseInt(pageParam, 10) : undefined;
 
   return (
     <Mushaf15Reader
-      initialPara={Number.isNaN(initialPara) ? 1 : initialPara}
-      initialPage={Number.isNaN(initialPage as number) ? undefined : initialPage}
+      initialPara={typeof initialPara === "number" && !Number.isNaN(initialPara) ? initialPara : undefined}
+      initialPage={typeof initialPage === "number" && !Number.isNaN(initialPage) ? initialPage : undefined}
       onClose={() => router.back()}
     />
   );
