@@ -15,6 +15,7 @@ echo "==> Syncing files to remote host..."
 rsync -av --delete \
   --exclude='.git' \
   --exclude='.github' \
+  --exclude='.env' \
   --exclude='node_modules' \
   --exclude='**/node_modules' \
   --exclude='.turbo' \
