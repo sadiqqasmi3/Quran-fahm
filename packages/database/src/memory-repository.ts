@@ -1258,6 +1258,7 @@ export class MemoryRepository implements QuranFehamRepository {
       name: detail.name,
       intention: detail.intention,
       targetKhatms: detail.targetKhatms,
+      startDate: detail.startDate ?? null,
       deadline: detail.deadline,
       ownerUserId: detail.ownerUserId,
       viewerRole: detail.viewerRole,

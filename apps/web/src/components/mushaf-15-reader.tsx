@@ -149,6 +149,30 @@ export function Mushaf15Reader({
   const { locale, setLocale, isUrdu } = useLocale();
   const [targetPageInput, setTargetPageInput] = useState(String(currentPage));
 
+  // Page image loading and error states to eliminate blank white page flash
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isPageError, setIsPageError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+
+  // Sync prop changes if initialPara or initialPage change while mounted
+  useEffect(() => {
+    if (typeof initialPara === "number" && initialPara >= 1 && initialPara <= 30) {
+      setParaNumber(initialPara);
+    }
+  }, [initialPara]);
+
+  useEffect(() => {
+    if (typeof initialPage === "number" && initialPage >= 2 && initialPage <= 611) {
+      setCurrentPage(initialPage);
+    }
+  }, [initialPage]);
+
+  // Reset loading state when page changes or retry is clicked
+  useEffect(() => {
+    setIsPageLoading(true);
+    setIsPageError(false);
+  }, [currentPage, retryKey]);
+
   // Touch & wheel handling
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
@@ -210,22 +234,24 @@ export function Mushaf15Reader({
     }
   }, [currentPara, currentPage]);
 
-  // Preload adjacent pages in browser memory for zero-latency turning
+  // Preload adjacent pages in browser memory AFTER the current page has loaded
   useEffect(() => {
+    if (isPageLoading || isPageError) return;
+
     const pagesToPreload = [
-      currentPage - 3,
-      currentPage - 2,
-      currentPage - 1,
       currentPage + 1,
-      currentPage + 2,
-      currentPage + 3,
+      currentPage - 1,
     ].filter((p) => p >= 2 && p <= 611);
 
-    pagesToPreload.forEach((p) => {
-      const img = new Image();
-      img.src = mushafPageImageUrl(p);
-    });
-  }, [currentPage]);
+    const timer = setTimeout(() => {
+      pagesToPreload.forEach((p) => {
+        const img = new Image();
+        img.src = mushafPageImageUrl(p);
+      });
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [currentPage, isPageLoading, isPageError]);
 
   // Toggle fullscreen
   const toggleFullscreen = useCallback(async () => {
@@ -723,12 +749,67 @@ export function Mushaf15Reader({
             className={`relative rounded-xl sm:rounded-2xl border ${pageFrameStyle} overflow-hidden ${bookBgColor} shadow-2xl transition-all duration-200`}
             style={{
               maxHeight: "calc(100dvh - 9.5rem)",
+              aspectRatio: "1382 / 1976",
+              minHeight: "min(460px, calc(100dvh - 11rem))",
               boxShadow:
                 theme === "night"
                   ? "0 20px 50px rgba(0,0,0,0.95), 0 0 0 1px rgba(255,255,255,0.08)"
                   : "0 20px 50px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.05)",
             }}
           >
+            {/* Themed Loading Skeleton (Shown while image is fetching/decoding) */}
+            {isPageLoading && !isPageError && (
+              <div
+                className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center ${
+                  theme === "night" ? "bg-[#111613]" : theme === "sepia" ? "bg-[#f4ebd9]" : "bg-[#fcfaf5]"
+                }`}
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <div className="size-9 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                  <p className="text-xs font-semibold text-ink">
+                    {isUrdu ? `صفحہ ${currentPage} لوڈ ہو رہا ہے…` : `Loading Page ${currentPage}…`}
+                  </p>
+                  <p className="text-[11px] text-muted">
+                    {isUrdu
+                      ? `پارہ ${currentPara.number} · ${currentPara.nameArabic}`
+                      : `Para ${currentPara.number} · ${currentPara.nameLatin}`}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Error Fallback with Retry */}
+            {isPageError && (
+              <div
+                className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center ${
+                  theme === "night" ? "bg-[#111613]" : theme === "sepia" ? "bg-[#f4ebd9]" : "bg-[#fcfaf5]"
+                }`}
+              >
+                <div className="max-w-xs space-y-3">
+                  <p className="text-sm font-semibold text-danger">
+                    {isUrdu ? `صفحہ ${currentPage} لوڈ نہیں ہو سکا` : `Could not load page ${currentPage}`}
+                  </p>
+                  <p className="text-xs text-muted leading-relaxed">
+                    {isUrdu
+                      ? "انٹرنیٹ کنکشن چیک کریں اور دوبارہ کوشش کریں۔"
+                      : "Please check your network connection and try again."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPageError(false);
+                      setIsPageLoading(true);
+                      setRetryKey((k) => k + 1);
+                    }}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-action px-4 text-xs font-semibold text-on-action hover:bg-action-hover active:scale-95 transition-transform"
+                  >
+                    <RotateCcw size={14} />
+                    <span>{isUrdu ? "دوبارہ کوشش کریں" : "Retry page"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Stationary Base Layer (Destination page visible underneath during turn) */}
             {isTurning && incomingPage !== null && (
               <div className="absolute inset-0 z-0 flex items-center justify-center">
@@ -771,12 +852,23 @@ export function Mushaf15Reader({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
+                key={`${currentImageUrl}-${retryKey}`}
                 src={currentImageUrl}
                 alt={`15-Line Mushaf Page ${currentPage} - Para ${currentPara.number}`}
-                className={`block max-h-[calc(100dvh-10rem)] w-auto object-contain ${imageFilterClass}`}
+                className={`block max-h-[calc(100dvh-10rem)] w-auto object-contain transition-opacity duration-200 ${
+                  isPageLoading ? "opacity-0" : "opacity-100"
+                } ${imageFilterClass}`}
                 draggable={false}
                 loading="eager"
                 decoding="async"
+                onLoad={() => {
+                  setIsPageLoading(false);
+                  setIsPageError(false);
+                }}
+                onError={() => {
+                  setIsPageLoading(false);
+                  setIsPageError(true);
+                }}
               />
 
               {/* Dynamic Turn Shadow during page turn */}

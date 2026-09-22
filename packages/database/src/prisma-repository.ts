@@ -175,9 +175,8 @@ const khatmRoomDetailInclude = {
 const khatmRoomSummaryInclude = {
   members: { select: { userId: true, role: true } },
   campaigns: {
-    where: { status: "ACTIVE" },
     orderBy: { number: "desc" },
-    take: 1,
+    take: 2,
     include: { slots: { select: { status: true } } },
   },
 } satisfies Prisma.KhatmRoomInclude;
@@ -259,6 +258,7 @@ function mapKhatmRoomDetail(row: KhatmRoomDetailRow, userId: string): KhatmRoomD
       number: campaign.number,
       status: campaign.status,
       targetKhatms: campaign.targetKhatms,
+      startDate: campaign.startDate,
       deadline: campaign.deadline,
       createdAt: campaign.createdAt,
       endedAt: campaign.endedAt,
@@ -284,9 +284,8 @@ function mapKhatmRoomDetail(row: KhatmRoomDetailRow, userId: string): KhatmRoomD
 
 function mapKhatmRoomSummary(row: KhatmRoomSummaryRow, userId: string): KhatmRoomSummaryRecord {
   const viewer = row.members.find((member) => member.userId === userId);
-  const campaign = row.campaigns[0];
+  const campaign = row.campaigns.find((c) => c.status === "ACTIVE") ?? row.campaigns[0];
   if (!viewer) throw new KhatmRepositoryError("NOT_MEMBER", "You are not a member of this room");
-  if (!campaign) throw new Error("Khatm room has no active campaign");
   return {
     id: row.id,
     name: row.name,
@@ -297,9 +296,9 @@ function mapKhatmRoomSummary(row: KhatmRoomSummaryRow, userId: string): KhatmRoo
     ownerUserId: row.ownerUserId,
     viewerRole: viewer.role,
     memberCount: row.members.length,
-    activeCampaignId: campaign.id,
-    completedSlots: campaign.slots.filter((slot) => slot.status === "COMPLETED").length,
-    totalSlots: campaign.slots.length,
+    activeCampaignId: campaign?.id ?? "",
+    completedSlots: campaign ? campaign.slots.filter((slot) => slot.status === "COMPLETED").length : 0,
+    totalSlots: campaign?.slots.length ? campaign.slots.length : row.targetKhatms * 30,
     recurrence: row.recurrence,
     autoRestartOnComplete: row.autoRestartOnComplete,
     maxActiveParasPerMember: row.maxActiveParasPerMember,

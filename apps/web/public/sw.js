@@ -1,7 +1,8 @@
-const VERSION = "qf-web-v2-20260920-1";
+const VERSION = "qf-web-v2-20260922-1";
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const QURAN_CACHE = `${VERSION}-quran`;
+const MUSHAF_CACHE = `${VERSION}-mushaf`;
 const OWNED_PREFIX = "qf-web-v2-";
 const INITIAL_SHELL = ["/", "/home", "/quran", "/manifest.webmanifest", "/icon.svg"];
 
@@ -49,6 +50,11 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname.startsWith("/api/v1/quran/")) {
     event.respondWith(networkFirst(request, QURAN_CACHE));
+    return;
+  }
+
+  if (url.pathname.startsWith("/mushaf-15-lines/pages/")) {
+    event.respondWith(networkFirst(request, MUSHAF_CACHE));
     return;
   }
 

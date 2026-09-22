@@ -145,6 +145,7 @@ function serializeRoom(room: KhatmRoomDetailRecord) {
 function serializeSummary(room: KhatmRoomSummaryRecord) {
   return {
     ...room,
+    startDate: room.startDate?.toISOString() ?? null,
     deadline: room.deadline?.toISOString() ?? null,
     viewerRole: room.viewerRole.toLowerCase(),
     recurrence: room.recurrence.toLowerCase(),

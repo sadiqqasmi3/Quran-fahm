@@ -54,7 +54,7 @@ async function executeRequest(
       },
     };
     if (!fetchInit.signal && typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
-      fetchInit.signal = AbortSignal.timeout(8000);
+      fetchInit.signal = AbortSignal.timeout(20000);
     }
     response = await fetch(`/api/v1${path}`, fetchInit);
   } catch {

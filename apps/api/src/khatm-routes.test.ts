@@ -170,6 +170,77 @@ describe("Khatm Rooms API", () => {
     ]);
   });
 
+  it("handles creating a second room with startDate after bookings in first room", async () => {
+    const repository = new MemoryRepository();
+    const mailer = new MemoryAuthMailer();
+    app = await buildApp({ config: testConfig(), repository, mailer });
+
+    const ownerCookie = await verifiedUser(app, mailer, "room-owner@example.test");
+    const memberCookie = await verifiedUser(app, mailer, "room-friend@example.test");
+
+    // 1. Create Room 1
+    const room1Res = await app.inject({
+      method: "POST",
+      url: "/api/v1/khatm/rooms",
+      headers: { origin: allowedOrigin, cookie: ownerCookie },
+      payload: { name: "Room 1", targetKhatms: 1 },
+    });
+    expect(room1Res.statusCode).toBe(201);
+    const room1 = room1Res.json().room;
+
+    // 2. Owner books para 1 in Room 1
+    const claimRes = await app.inject({
+      method: "POST",
+      url: `/api/v1/khatm/rooms/${room1.id}/campaigns/${room1.activeCampaign.id}/slots/1/1/claim`,
+      headers: { origin: allowedOrigin, cookie: ownerCookie },
+    });
+    expect(claimRes.statusCode).toBe(200);
+
+    // 3. Friend joins Room 1 and books para 2
+    await app.inject({
+      method: "POST",
+      url: "/api/v1/khatm/rooms/join",
+      headers: { origin: allowedOrigin, cookie: memberCookie },
+      payload: { inviteCode: room1.inviteCode },
+    });
+    const friendClaim = await app.inject({
+      method: "POST",
+      url: `/api/v1/khatm/rooms/${room1.id}/campaigns/${room1.activeCampaign.id}/slots/1/2/claim`,
+      headers: { origin: allowedOrigin, cookie: memberCookie },
+    });
+    expect(friendClaim.statusCode).toBe(200);
+
+    // 4. Owner creates Room 2 with startDate and deadline
+    const room2Res = await app.inject({
+      method: "POST",
+      url: "/api/v1/khatm/rooms",
+      headers: { origin: allowedOrigin, cookie: ownerCookie },
+      payload: {
+        name: "Room 2",
+        targetKhatms: 1,
+        startDate: "2026-09-22T00:00:00.000Z",
+        deadline: "2026-09-29T23:59:59.000Z",
+        recurrence: "weekly",
+      },
+    });
+    expect(room2Res.statusCode).toBe(201);
+    const room2 = room2Res.json().room;
+    expect(room2.startDate).toBe("2026-09-22T00:00:00.000Z");
+
+    // 5. Owner lists rooms - must succeed and return both rooms with valid schema serialization
+    const ownerRoomsRes = await app.inject({
+      method: "GET",
+      url: "/api/v1/khatm/rooms",
+      headers: { cookie: ownerCookie },
+    });
+    expect(ownerRoomsRes.statusCode).toBe(200);
+    const ownerRooms = ownerRoomsRes.json().rooms;
+    expect(ownerRooms).toHaveLength(2);
+    expect(ownerRooms.find((r: { id: string }) => r.id === room2.id)?.startDate).toBe(
+      "2026-09-22T00:00:00.000Z",
+    );
+  });
+
   it("validates room limits and invitation codes", async () => {
     const mailer = new MemoryAuthMailer();
     app = await buildApp({ config: testConfig(), mailer });

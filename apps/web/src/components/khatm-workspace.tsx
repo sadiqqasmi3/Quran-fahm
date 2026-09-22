@@ -1817,26 +1817,36 @@ export function KhatmWorkspace() {
         setUser(currentUser);
         setWorkspaceState("ready");
         setRoomsLoading(true);
-        const roomList = await listKhatmRooms();
-        if (!active) return;
-        setRooms(roomList);
-        setLastSyncedAt(new Date());
-        const roomId = roomList.some((item) => item.id === requestedRoomId)
-          ? requestedRoomId
-          : roomList[0]?.id;
-        if (joinValue) setFormMode("join");
-        else if (roomList.length === 0) setFormMode("create");
-        if (roomId) {
-          const detail = await getKhatmRoom(roomId);
+        try {
+          const roomList = await listKhatmRooms();
           if (!active) return;
-          setRoom(detail);
+          setRooms(roomList);
+          setLastSyncedAt(new Date());
+          const roomId = roomList.some((item) => item.id === requestedRoomId)
+            ? requestedRoomId
+            : roomList[0]?.id;
+          if (joinValue) setFormMode("join");
+          else if (roomList.length === 0) setFormMode("create");
+          if (roomId) {
+            const detail = await getKhatmRoom(roomId);
+            if (!active) return;
+            setRoom(detail);
+          }
+        } catch (innerError) {
+          if (!active) return;
+          setNotice({ tone: "error", text: errorMessage(innerError) });
         }
       } catch (error) {
         if (!active) return;
         if (error instanceof ApiFailure && (error.status === 401 || error.status === 403)) {
           setWorkspaceState("guest");
-        } else {
+        } else if (
+          (typeof navigator !== "undefined" && !navigator.onLine) ||
+          (error instanceof ApiFailure && error.status === 0)
+        ) {
           setWorkspaceState("offline");
+        } else {
+          setWorkspaceState("guest");
         }
       } finally {
         if (active) setRoomsLoading(false);
